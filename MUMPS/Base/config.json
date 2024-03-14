@@ -1,0 +1,121 @@
+{
+    "verbose": true,
+    "debug": true,
+    "EXPERIMENT": {
+        "objectives": [
+            "performance"
+        ]
+    },
+    "PARAMETERS": {
+        "DESIGN_PARAMETERS": {
+            "num_threads": {
+                "Type": "int",
+                "Values": [
+                    1,
+                    10
+                ]
+            },
+            "num_proc": {
+                "Type": "int",
+                "Values": [
+                    2,
+                    4
+                ]
+            },
+            "icntl_13": {
+                "Type": "int",
+                "Values": [
+                    -1,
+                    1
+                ]
+            }
+        },
+        "KERNEL_INPUTS": {
+            "nnz": {
+                "Type": "int",
+                "Values": [
+                    19000000,
+                    34767207
+                ]
+            },
+            "symmetry": {
+                "Type": "int",
+                "Values": [
+                    0,
+                    1
+                ]
+            }
+        }
+    },
+    "SAMPLING": {
+        "sampling_verbose": true,
+        "sampling_debug": true,
+        "sampler": {
+            "sampling_method": "lhs",
+            "parameters": {
+                "n_samples": 100,
+		"termination": {
+		    "time": "00:30:00"
+		}
+            }
+        },
+        "scripts": {
+            "kernel": "run_mumps.sh"
+        },
+        "kernel_arguments_order": [
+            "nnz",
+            "symmetry",
+            "num_threads",
+            "num_proc",
+            "icntl_13"
+        ]
+    },
+    "MODELING": {
+        "modeling_verbose": true,
+        "modeling_debug": true,
+        "modeling_method": "lightgbm",
+        "xboost_regressor_parameters": {
+            "n_estimators": 100,
+            "max_depth": 10,
+            "max_leaves": 0,
+            "grow_policy": "loss_guide",
+            "tree_method": "exact"
+        },
+        "automl_regressor_parameters": {
+            "time_left_for_this_task": 240,
+            "n_jobs": -1
+        }
+    },
+    "OPTIMIZATION": {
+        "optimization_verbose": true,
+        "optimization_debug": false,
+        "sampling": {
+            "sampler": {
+                "sampling_method": "grid"
+            },
+            "sample_count": {
+                "matrix_size": 20,
+                "matrix": 2
+            }
+        },
+        "optimization_method": "genetic",
+        "optimization_parameters": {
+            "evolution": {
+                "pop_size": 80
+            },
+            "termination": {
+                "time": "00:01:00"
+            },
+	    "selection_method": "mono"
+        }
+    },
+    "CLUSTERING": {
+        "clustering_verbose": true,
+        "clustering_debug": false,
+        "clustering_method": "decision_tree",
+        "clustering_parameters": {
+            "max_depth": 3
+        }
+    }
+}
+
