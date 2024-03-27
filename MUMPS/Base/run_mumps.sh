@@ -2,9 +2,10 @@
 
 nnz=$1
 symmetric=$2
-num_threads=$3
-num_proc=$4
-icntl_13=$5
+num_proc=$3
+num_threads=$4
+par=$5
+icntl_13=$6
 
 # Check the inputs
 if [[ $nnz == "" || $(printf "$nnz" | grep -E -vo "[1-9][0-9]*") != "" ]]; then
@@ -24,6 +25,11 @@ fi
 
 if [[ $(echo $num_proc | grep -E -o "[1-9][0-9]*") == "" ]]; then
     >&2 printf "\e[31mERROR\e[0m $num_threads is a wrong number of MPI ranks\n"
+    exit 1
+fi
+
+if [[ $(echo $par | grep -E -o "(0|1)") == "" ]]; then
+    >&2 printf "\e[31mERROR\e[0m $par is not a proper PAR parameter (0 or 1)\n"
     exit 1
 fi
 
@@ -47,6 +53,7 @@ fi
 # Flan       |  59,485,419 | true      | 15-Flan_1565.mtx
 # Cube       |  64,685,452 | true      | 19-Cube_Coup_dt0.mtx
 # Queen      | 166,823,197 | true      | 13-Queen_4147.mtx
+# -----------|-------------|-----------|-------------------------
 # Transport  |  23,500,731 | false     |  8-Transport.mtx
 # ss         |  34,753,577 | false     |  2-ss.mtx
 # vas_stokes |  34,767,207 | false     | 11-vas_stokes_1M.mtx
@@ -93,16 +100,18 @@ else
 
 fi
 
+outputfile="tmp${RANDOM}.out"
+
 # Log the inputs and the selection
 printf "$nnz $symmetric $matrix $num_proc $num_threads $icntl_13" >> launch.log
 
 # Launch the MUMPS executable on the selected matrix
-# OMP_NUM_THREADS=$num_threads srun -n $num_proc ./mumps $matrix $icntl_13 1> tmp.out 2> err.out
+KMP_AFFINITY=scatter MKL_NUM_THREADS=$num_threads OMP_NUM_THREADS=$num_threads srun -N 1 -n $num_proc ./mumps $matrix $par $icntl_13 $num_threads 1> $outputfile 2> err.out
 
 # Retrieve the times mesures by MUMPS
-analysis_time=$(grep "Elapsed time in analysis driver" tmp.out | grep -E -o "[0-9]*\.[0-9]*")
-factorization_time=$(grep "Elapsed time in factorization driver" tmp.out | grep -E -o "[0-9]*\.[0-9]*")
-solve_time=$(grep "Elapsed time in solve driver" tmp.out | grep -E -o "[0-9]*\.[0-9]*")
+analysis_time=$(grep "Elapsed time in analysis driver" $outputfile | grep -E -o "[0-9]*\.[0-9]*")
+factorization_time=$(grep "Elapsed time in factorization driver" $outputfile | grep -E -o "[0-9]*\.[0-9]*")
+solve_time=$(grep "Elapsed time in solve driver" $outputfile | grep -E -o "[0-9]*\.[0-9]*")
 
 # Check for an error
 if [[ -z $analysis_time || -z $factorization_time || -z $solve_time ]]; then
@@ -110,7 +119,10 @@ if [[ -z $analysis_time || -z $factorization_time || -z $solve_time ]]; then
     printf "\n" >> launch.log
     exit 1
 fi
+
 # Compute the total time and return it to mlkaps
 total=$(echo "scale=4; $analysis_time + $factorization_time + $solve_time" | bc)
 printf "$total\n" >> launch.log
 echo $total
+
+rm -f $outputfile

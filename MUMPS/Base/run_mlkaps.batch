@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #SBATCH --job-name=first_mumps_experiment
-#SBATCH --nodes=2
-#SBATCH --tasks-per-node=2
-#SBATCH --cpus-per-task=10
-#SBATCH --mem=96G
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=8
+#SBATCH --cpus-per-task=5
+#SBATCH --mem=64G
 #SBATCH --time=10:00:00
 #SBATCH --partition=cpu_long
 

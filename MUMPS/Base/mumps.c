@@ -121,8 +121,8 @@ void generate_rhs (MUMPS_INT n, MUMPS_INT8 nnz, MUMPS_INT irn[static nnz],
 
 int main (int argc, char *argv[]) {
 
-    if(argc != 3) {
-        fprintf(stderr, "USAGE: %s input_file ICNTL_13\n", argv[0]);
+    if(argc != 5) {
+        fprintf(stderr, "USAGE: %s input_file PAR ICNTL_13 ICNTL_16\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -168,10 +168,14 @@ int main (int argc, char *argv[]) {
     int ierr, rank;
     DMUMPS_STRUC_C dmumps_par;
 
-    const MUMPS_INT icntl_13 = (MUMPS_INT) atoi(argv[2]);
+    dmumps_par.par = (int) atoi(argv[2]);
+    const MUMPS_INT icntl_13 = (MUMPS_INT) atoi(argv[3]);
+    const MUMPS_INT icntl_16 = (MUMPS_INT) atoi(argv[4]);
 
     // This parameter controls the involvement of the root rank in the factorization
     dmumps_par.ICNTL(13) = icntl_13;
+    // This parameter explicitly request a number of OMP threads
+    dmumps_par.ICNTL(16) = icntl_16;
 
     // Initialize MPI
     ierr = MPI_Init(&argc, &argv);
@@ -179,7 +183,6 @@ int main (int argc, char *argv[]) {
 
     // Initialize MUMPS
     dmumps_par.comm_fortran = USE_COMM_WORLD;
-    dmumps_par.par = 1;
     dmumps_par.job = JOB_INIT;
 
     dmumps_c(&dmumps_par);
@@ -192,13 +195,16 @@ int main (int argc, char *argv[]) {
         dmumps_par.jcn = jcn;
         dmumps_par.a = a;
         dmumps_par.rhs = rhs;
-        dmumps_par.sym = spec;
+        dmumps_par.sym = (int) spec;
     }
 
+    // Enables residual computation and printing
+    dmumps_par.ICNTL(11) = 2;
     dmumps_par.ICNTL(13) = icntl_13;
     // This parameter controls the memory relaxation of the MUMPS during factorisation
     // We need to increase it as some matrix needs large size of temporary memory
     dmumps_par.ICNTL(14) = 25;
+    dmumps_par.ICNTL(16) = icntl_16;
 
     // Launch MUMPS for Analysis, Factorisation and Resolution
     dmumps_par.job = 6;
@@ -211,13 +217,13 @@ int main (int argc, char *argv[]) {
     // Print the solution for verification
     // TODO: Automate the verification (residual, forward error if possible...)
     // The residual can be computed by mumps and returned with ICNTL(11) = 2
-    if(rank == 0) {
-        fputs("Solution is : (", stdout);
-        for(size_t i = 0; i < n; i++) {
-            printf("%8.2lf, ", rhs[i]);
-        }
-        puts(")\n");
-    }
+    /* if(rank == 0) { */
+    /*     fputs("Solution is : (", stdout); */
+    /*     for(size_t i = 0; i < n; i++) { */
+    /*         printf("%8.2lf, ", rhs[i]); */
+    /*     } */
+    /*     puts(")\n"); */
+    /* } */
 
     ierr = MPI_Finalize();
 
