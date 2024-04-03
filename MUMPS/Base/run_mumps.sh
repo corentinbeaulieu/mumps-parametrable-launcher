@@ -106,7 +106,10 @@ outputfile="tmp${RANDOM}.out"
 printf "$nnz $symmetric $matrix $num_proc $num_threads $icntl_13" >> launch.log
 
 # Launch the MUMPS executable on the selected matrix
-KMP_AFFINITY=scatter MKL_NUM_THREADS=$num_threads OMP_NUM_THREADS=$num_threads srun -N 1 -n $num_proc ./mumps $matrix $par $icntl_13 $num_threads 1> $outputfile 2> err.out
+KMP_AFFINITY=scatter MKL_NUM_THREADS=$num_threads OMP_NUM_THREADS=$num_threads\
+    salloc -N 1 -n $num_proc -c $num_threads --job-name=mumps_run -p cpu_short --mem=42G --time=00:40:00\
+    srun -N 1 -n $num_proc ./mumps\
+    $matrix $par $icntl_13 $num_threads 1> $outputfile 2> err.out
 
 # Retrieve the times mesures by MUMPS
 analysis_time=$(grep "Elapsed time in analysis driver" $outputfile | grep -E -o "[0-9]*\.[0-9]*")

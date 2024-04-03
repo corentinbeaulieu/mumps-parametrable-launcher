@@ -1,15 +1,15 @@
 
-CC=mpicc
+CC=mpiicx
 
-LMETIS=-L/gpfs/users/beaulieuc/Installs/metis/lib
-LAPACK=-L$(MKLROOT)/lib/intel64 -lmkl_lapack95_lp64
+LMETIS=-L/gpfs/users/beaulieuc/Installs/metis/lib -lmetis
+LAPACK=-L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core
 SCALAP=-L$(MKLROOT)/lib/intel64 -lmkl_scalapack_lp64 -lmkl_blacs_intelmpi_lp64
-LIBPAR=-Wl,--no-as-needed $(SCALAP) $(LAPACK) -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lm
+LIBPAR= $(SCALAP) $(LAPACK) -lm -ldl
 LIBBLAS=-lmkl_blas95_lp64
 LIBBLACS=-lmkl_blacs_intelmpi_lp64
-LORDERINGS=${LMETIS}
-LMUMPS=-L/gpfs/users/beaulieuc/Installs/MUMPS/MUMPS_5.6.2/lib -ldmumps -lmumps_common
-IFLAGS=-I$(MKLROOT)/include -I/gpfs/users/beaulieuc/Installs/MUMPS/MUMPS_5.6.2/include 
+LORDERINGS=${LMETIS} -lpord
+LMUMPS=-L/gpfs/users/beaulieuc/Installs/MUMPS/MUMPS_5.6.2/lib -ldmumps -lzmumps -lmumps_common
+IFLAGS=-I$(MKLROOT)/include -I$(MKLROOT)/include/intel64 -I/gpfs/users/beaulieuc/Installs/MUMPS/MUMPS_5.6.2/include
 LDFLAGS=${LORDERINGS} ${LMUMPS} ${LIBPAR} ${LIBBLAS} ${LIBBLACS} -lpthread
 
 .PHONY: all clean
@@ -17,7 +17,7 @@ LDFLAGS=${LORDERINGS} ${LMUMPS} ${LIBPAR} ${LIBBLAS} ${LIBBLACS} -lpthread
 all: mumps
 
 mumps: mumps.c
-	${CC} -std=c11 ${IFLAGS} $< -o $@ ${LDFLAGS}
+	${CC} -O1 -std=c11 ${IFLAGS} $< -o $@ ${LDFLAGS} -qopenmp
 
 clean:
 	rm -f mumps
