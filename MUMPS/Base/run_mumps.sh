@@ -1,5 +1,12 @@
 #!/bin/bash
 
+
+# Check the inputs
+if [[ $# != 6 ]]; then
+    >&2 printf "\e[33mUSAGE:\e[0m %s nnz symmetry num_proc num_threads par icntl_13\n" "$0"
+    exit 1
+fi
+
 nnz=$1
 symmetric=$2
 num_proc=$3
@@ -7,34 +14,33 @@ num_threads=$4
 par=$5
 icntl_13=$6
 
-# Check the inputs
-if [[ $nnz == "" || $(printf "$nnz" | grep -E -vo "[1-9][0-9]*") != "" ]]; then
-    >&2 printf "\e[31mERROR\e[0m $nnz is a not a valid integer\n"
+if [[ $nnz == "" || $(printf "%s" "$nnz" | grep -E -vo "[1-9][0-9]*") != "" ]]; then
+    >&2 printf "\e[31mERROR:\e[0m %s is a not a valid integer\n" "$nnz"
     exit 1
 fi
 
 if [[ $symmetric != "0" && $symmetric != "1" ]]; then
-    >&2 printf "\e[31mERROR\e[0m $symmetric is a wrong symmetry kind\n"
+    >&2 printf "\e[31mERROR:\e[0m %s is a wrong symmetry kind\n" "$symmetric"
     exit 1
 fi
 
-if [[ $(echo $num_threads | grep -E -o "[1-9][0-9]*") == "" ]]; then
-    >&2 printf "\e[31mERROR\e[0m $num_threads is a wrong number of threads\n"
+if [[ $(echo "$num_threads" | grep -E -o "[1-9][0-9]*") == "" ]]; then
+    >&2 printf "\e[31mERROR:\e[0m %s is a wrong number of threads\n" "$num_threads"
     exit 1
 fi
 
-if [[ $(echo $num_proc | grep -E -o "[1-9][0-9]*") == "" ]]; then
-    >&2 printf "\e[31mERROR\e[0m $num_threads is a wrong number of MPI ranks\n"
+if [[ $(echo "$num_proc" | grep -E -o "[1-9][0-9]*") == "" ]]; then
+    >&2 printf "\e[31mERROR:\e[0m %s is a wrong number of MPI ranks\n" "$num_threads"
     exit 1
 fi
 
-if [[ $(echo $par | grep -E -o "(0|1)") == "" ]]; then
-    >&2 printf "\e[31mERROR\e[0m $par is not a proper PAR parameter (0 or 1)\n"
+if [[ $(echo "$par" | grep -E -o "(0|1)") == "" ]]; then
+    >&2 printf "\e[31mERROR:\e[0m %s is not a proper PAR parameter (0 or 1)\n" "$par"
     exit 1
 fi
 
-if [[ $(echo $icntl_13 | grep -E -o "([1-9][0-9]*)|-1|0") == "" ]]; then
-    >&2 printf "\e[31mERROR\e[0m $icntl_13 is not a proper ICNTL 13 parameter (-1, 0 or >0)\n"
+if [[ $(echo "$icntl_13" | grep -E -o "([1-9][0-9]*)|-1|0") == "" ]]; then
+    >&2 printf "\e[31mERROR:\e[0m %s is not a proper ICNTL 13 parameter (-1, 0 or >0)\n" "$icntl_13"
     exit 1
 fi
 
@@ -103,13 +109,19 @@ fi
 outputfile="tmp${RANDOM}.out"
 
 # Log the inputs and the selection
-printf "$nnz $symmetric $matrix $num_proc $num_threads $icntl_13" >> launch.log
+printf "%d %d %s %d %d %d" "$nnz" "$symmetric" "$matrix" "$num_proc" "$num_threads" "$icntl_13" >> launch.log
 
 # Launch the MUMPS executable on the selected matrix
-KMP_AFFINITY=scatter MKL_NUM_THREADS=$num_threads OMP_NUM_THREADS=$num_threads\
-    salloc -N 1 -n $num_proc -c $num_threads --job-name=mumps_run -p cpu_short --mem=42G --time=00:40:00\
-    srun -N 1 -n $num_proc ./mumps\
-    $matrix $par $icntl_13 $num_threads 1> $outputfile 2> err.out
+KMP_AFFINITY=scatter MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads"\
+    salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=42G --time=00:40:00\
+    srun -N 1 -n "$num_proc" ./mumps\
+    "$matrix" "$par" "$icntl_13" "$num_threads" 1> "$outputfile" 2> err.out
+
+if [[ $? != 0 ]]; then
+    >&2 printf "\e[31mERROR:\e[0m the execution went wrong -> return code: %d\n" $?
+    printf "\n" >> launch.log
+    exit 1
+fi
 
 # Retrieve the times mesures by MUMPS
 analysis_time=$(grep "Elapsed time in analysis driver" $outputfile | grep -E -o "[0-9]*\.[0-9]*")
@@ -118,14 +130,14 @@ solve_time=$(grep "Elapsed time in solve driver" $outputfile | grep -E -o "[0-9]
 
 # Check for an error
 if [[ -z $analysis_time || -z $factorization_time || -z $solve_time ]]; then
-    >&2 printf "\e[31mERROR\e[0m the execution went wrong\n"
+    >&2 printf "\e[31mERROR:\e[0m the metrics retrieval went wrong\n"
     printf "\n" >> launch.log
     exit 1
 fi
 
 # Compute the total time and return it to mlkaps
 total=$(echo "scale=4; $analysis_time + $factorization_time + $solve_time" | bc)
-printf "$total\n" >> launch.log
-echo $total
+printf "%f\n" "$total" >> launch.log
+echo "$total"
 
-rm -f $outputfile
+rm -f "$outputfile"

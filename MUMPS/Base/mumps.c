@@ -3,17 +3,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <omp.h>
 #include <mpi.h>
+#include <omp.h>
 #include <string.h>
-#include <zmumps_c.h>
+
 #include <dmumps_c.h>
+#include <zmumps_c.h>
 
-#define JOB_INIT -1
-#define JOB_END -2
-#define USE_COMM_WORLD -987654
+#define JOB_INIT       -1
+#define JOB_END        -2
+#define USE_COMM_WORLD -987'654
 
-#define ICNTL(i) icntl[(i)-1]
+#define ICNTL(i) icntl[(i) -1]
 
 /** Parsing errors **/
 typedef enum {
@@ -29,15 +30,15 @@ typedef enum {
 
 /** MUMPS values for symmetry **/
 typedef enum : int {
-    Unsymmetric = 0,
+    Unsymmetric             = 0,
     SymmetricDefinePositive = 1,
-    Symmetric = 2
+    Symmetric               = 2
 } specificity_t;
 
 /** Generic matrix for both double and double complex **/
 typedef struct {
     union {
-        DMUMPS_REAL *d_array;
+        DMUMPS_REAL    *d_array;
         ZMUMPS_COMPLEX *z_array;
     };
     enum : unsigned char {
@@ -46,10 +47,11 @@ typedef struct {
     } type;
 } matrix_t;
 
-/** Parses a matrix formatted with the MatrixMarket format and stores it in well-formed arrays for MUMPS
- *  Note that only a subpart of the format is supported (the one we need currently)
+/** Parses a matrix formatted with the MatrixMarket format and stores it in well-formed
+ *  arrays for MUMPS. Note that only a subpart of the format is supported (the one we
+ *  need currently)
  */
-parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_INT **jcn, 
+parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_INT **jcn,
                         matrix_t *a, specificity_t *spec, char *input_file) {
 
     FILE *const fd = fopen(input_file, "r");
@@ -57,8 +59,8 @@ parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_IN
         return FileError;
     }
 
-    char *buffer = NULL;
-    char verification[32], matrix[32], format[32], type[32], specificity[32];
+    char  *buffer = NULL;
+    char   verification[32], matrix[32], format[32], type[32], specificity[32];
     size_t buffer_size = 0;
 
     getline(&buffer, &buffer_size, fd);
@@ -81,7 +83,7 @@ parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_IN
     if (strcmp(type, "real") == 0) {
         a->type = d;
     }
-    else if  (strcmp(type, "complex") == 0) {
+    else if (strcmp(type, "complex") == 0) {
         a->type = z;
     }
     else {
@@ -100,7 +102,9 @@ parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_IN
 
     // Go pass the comments and notes
     getline(&buffer, &buffer_size, fd);
-    while(buffer[0] == '%') getline(&buffer, &buffer_size, fd);
+    while (buffer[0] == '%') {
+        getline(&buffer, &buffer_size, fd);
+    }
 
     // Get the matrix characteristics
     size_t tmp;
@@ -110,23 +114,28 @@ parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_IN
     *jcn = (int *) malloc(*nnz * sizeof(int));
     if (a->type == d) {
         a->d_array = (DMUMPS_REAL *) malloc(*nnz * sizeof(DMUMPS_REAL));
-        if (*irn == NULL || *jcn == NULL || a->d_array == NULL) return MallocError;
+        if (*irn == NULL || *jcn == NULL || a->d_array == NULL) {
+            return MallocError;
+        }
 
         // Get the elements of the matrix
         MUMPS_INT8 i = 0;
-        while(getline(&buffer, &buffer_size, fd) > 0 && i < *nnz) {
+        while (getline(&buffer, &buffer_size, fd) > 0 && i < *nnz) {
             sscanf(buffer, "%d %d %lf", *irn + i, *jcn + i, a->d_array + i);
             i++;
         }
     }
     else {
         a->z_array = (ZMUMPS_COMPLEX *) malloc(*nnz * sizeof(ZMUMPS_COMPLEX));
-        if (*irn == NULL || *jcn == NULL || a->z_array == NULL) return MallocError;
+        if (*irn == NULL || *jcn == NULL || a->z_array == NULL) {
+            return MallocError;
+        }
 
         // Get the elements of the matrix
         MUMPS_INT8 i = 0;
-        while(getline(&buffer, &buffer_size, fd) > 0 && i < *nnz) {
-            sscanf(buffer, "%d %d %lf %lf", *irn + i, *jcn + i, &(a->z_array[i].r), &(a->z_array[i].i));
+        while (getline(&buffer, &buffer_size, fd) > 0 && i < *nnz) {
+            sscanf(buffer, "%d %d %lf %lf", *irn + i, *jcn + i, &(a->z_array[i].r),
+                   &(a->z_array[i].i));
             i++;
         }
     }
@@ -167,27 +176,29 @@ void zgenerate_rhs (MUMPS_INT n, MUMPS_INT8 nnz, MUMPS_INT irn[static nnz],
     }
 }
 
-#define generate_rhs(n, nnz, irn, a, rhs) _Generic(a, \
-        DMUMPS_REAL *: dgenerate_rhs, \
-        ZMUMPS_COMPLEX *: zgenerate_rhs)(n, nnz, irn, a, rhs)
+// clang-format off
+#define generate_rhs(n, nnz, irn, a, rhs)                                       \
+    _Generic(a, DMUMPS_REAL *: dgenerate_rhs, ZMUMPS_COMPLEX *: zgenerate_rhs)  \
+        (n, nnz, irn, a, rhs)
+// clang-format on
 
 int main (int argc, char *argv[]) {
 
-    if(argc != 5) {
+    if (argc != 5) {
         fprintf(stderr, "USAGE: %s input_file PAR ICNTL_13 ICNTL_16\n", argv[0]);
         return EXIT_FAILURE;
     }
 
 
-    MUMPS_INT n;
-    MUMPS_INT8 nnz;
-    MUMPS_INT *irn;
-    MUMPS_INT *jcn;
-    matrix_t a;
+    MUMPS_INT     n;
+    MUMPS_INT8    nnz;
+    MUMPS_INT    *irn;
+    MUMPS_INT    *jcn;
+    matrix_t      a;
     specificity_t spec;
 
     parse_error_t perr = parseMTX(&n, &nnz, &irn, &jcn, &a, &spec, argv[1]);
-    switch(perr) {
+    switch (perr) {
         case NotMatrixMarket:
             fprintf(stderr, "Not a Matrix Market input!\n");
             return perr;
@@ -214,11 +225,11 @@ int main (int argc, char *argv[]) {
     }
 
 
-    int ierr, rank;
+    int            ierr, rank;
     DMUMPS_STRUC_C dmumps_par;
     ZMUMPS_STRUC_C zmumps_par;
 
-    const int par = (int) atoi(argv[2]);
+    const int       par      = (int) atoi(argv[2]);
     const MUMPS_INT icntl_13 = (MUMPS_INT) atoi(argv[3]);
     const MUMPS_INT icntl_16 = (MUMPS_INT) atoi(argv[4]);
 
@@ -231,15 +242,23 @@ int main (int argc, char *argv[]) {
 
         // Initialize MPI
         ierr = MPI_Init(&argc, &argv);
+        if (ierr != 0) {
+            perror("ERROR: ");
+            return EXIT_FAILURE;
+        }
         ierr = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (ierr != 0) {
+            perror("ERROR: ");
+            return EXIT_FAILURE;
+        }
 
         // Initialize MUMPS
         dmumps_par.comm_fortran = USE_COMM_WORLD;
-        dmumps_par.job = JOB_INIT;
+        dmumps_par.job          = JOB_INIT;
 
         // This parameter controls the involvement of the root rank in the factorization
         // and solve phase
-        dmumps_par.par = par;
+        dmumps_par.par       = par;
         // This parameter controls the parallelism of factorization of the root node
         dmumps_par.ICNTL(13) = icntl_13;
         // This parameter explicitly request a number of OMP threads
@@ -248,12 +267,12 @@ int main (int argc, char *argv[]) {
         dmumps_c(&dmumps_par);
 
         // Define the system
-        if(rank == 0) {
-            dmumps_par.n = n;
+        if (rank == 0) {
+            dmumps_par.n   = n;
             dmumps_par.nnz = nnz;
             dmumps_par.irn = irn;
             dmumps_par.jcn = jcn;
-            dmumps_par.a = a.d_array;
+            dmumps_par.a   = a.d_array;
             dmumps_par.rhs = rhs;
             dmumps_par.sym = (int) spec;
         }
@@ -261,8 +280,9 @@ int main (int argc, char *argv[]) {
         // Enables residual computation and printing
         dmumps_par.ICNTL(11) = 2;
         dmumps_par.ICNTL(13) = icntl_13;
-        // This parameter controls the memory relaxation of the MUMPS during factorisation
-        // We need to increase it as some matrix needs large size of temporary memory
+        // This parameter controls the memory relaxation of the MUMPS during
+        // factorisation. We need to increase it as some matrix needs large size of
+        // temporary memory
         dmumps_par.ICNTL(14) = 25;
         dmumps_par.ICNTL(16) = icntl_16;
 
@@ -287,25 +307,33 @@ int main (int argc, char *argv[]) {
 
         // Initialize MPI
         ierr = MPI_Init(&argc, &argv);
+        if (ierr != 0) {
+            perror("ERROR: ");
+            return EXIT_FAILURE;
+        }
         ierr = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (ierr != 0) {
+            perror("ERROR: ");
+            return EXIT_FAILURE;
+        }
 
         // Initialize MUMPS
         zmumps_par.comm_fortran = USE_COMM_WORLD;
-        zmumps_par.job = JOB_INIT;
+        zmumps_par.job          = JOB_INIT;
 
-        zmumps_par.par = par;
+        zmumps_par.par       = par;
         zmumps_par.ICNTL(13) = icntl_13;
         zmumps_par.ICNTL(16) = icntl_16;
 
         zmumps_c(&zmumps_par);
 
         // Define the system
-        if(rank == 0) {
-            zmumps_par.n = n;
+        if (rank == 0) {
+            zmumps_par.n   = n;
             zmumps_par.nnz = nnz;
             zmumps_par.irn = irn;
             zmumps_par.jcn = jcn;
-            zmumps_par.a = a.z_array;
+            zmumps_par.a   = a.z_array;
             zmumps_par.rhs = rhs;
             zmumps_par.sym = (int) spec;
         }
@@ -313,8 +341,9 @@ int main (int argc, char *argv[]) {
         // Enables residual computation and printing
         zmumps_par.ICNTL(11) = 2;
         zmumps_par.ICNTL(13) = icntl_13;
-        // This parameter controls the memory relaxation of the MUMPS during factorisation
-        // We need to increase it as some matrix needs large size of temporary memory
+        // This parameter controls the memory relaxation of the MUMPS during
+        // factorisation. We need to increase it as some matrix needs large size of
+        // temporary memory
         zmumps_par.ICNTL(14) = 25;
         zmumps_par.ICNTL(16) = icntl_16;
 
@@ -341,6 +370,10 @@ int main (int argc, char *argv[]) {
     /* } */
 
     ierr = MPI_Finalize();
+    if (ierr != 0) {
+        perror("ERROR: ");
+        return EXIT_FAILURE;
+    }
 
     free(irn);
     free(jcn);
