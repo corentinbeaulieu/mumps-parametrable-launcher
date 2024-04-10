@@ -1,11 +1,13 @@
 
 #define _GNU_SOURCE
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include <mpi.h>
 #include <omp.h>
-#include <string.h>
 
 #include <dmumps_c.h>
 #include <zmumps_c.h>
@@ -42,8 +44,8 @@ typedef struct {
         ZMUMPS_COMPLEX *z_array;
     };
     enum : unsigned char {
-        d,
-        z
+        real    = 0,
+        complex = 1
     } type;
 } matrix_t;
 
@@ -81,10 +83,10 @@ parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_IN
     }
 
     if (strcmp(type, "real") == 0) {
-        a->type = d;
+        a->type = real;
     }
     else if (strcmp(type, "complex") == 0) {
-        a->type = z;
+        a->type = complex;
     }
     else {
         return UnknownType;
@@ -112,7 +114,7 @@ parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_IN
 
     *irn = (int *) malloc(*nnz * sizeof(int));
     *jcn = (int *) malloc(*nnz * sizeof(int));
-    if (a->type == d) {
+    if (a->type == real) {
         a->d_array = (DMUMPS_REAL *) malloc(*nnz * sizeof(DMUMPS_REAL));
         if (*irn == NULL || *jcn == NULL || a->d_array == NULL) {
             return MallocError;
@@ -120,7 +122,7 @@ parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_IN
 
         // Get the elements of the matrix
         MUMPS_INT8 i = 0;
-        while (getline(&buffer, &buffer_size, fd) > 0 && i < *nnz) {
+        while (i < *nnz && getline(&buffer, &buffer_size, fd) > 0) {
             sscanf(buffer, "%d %d %lf", *irn + i, *jcn + i, a->d_array + i);
             i++;
         }
@@ -133,7 +135,7 @@ parse_error_t parseMTX (MUMPS_INT *n, MUMPS_INT8 *nnz, MUMPS_INT **irn, MUMPS_IN
 
         // Get the elements of the matrix
         MUMPS_INT8 i = 0;
-        while (getline(&buffer, &buffer_size, fd) > 0 && i < *nnz) {
+        while (i < *nnz && getline(&buffer, &buffer_size, fd) > 0) {
             sscanf(buffer, "%d %d %lf %lf", *irn + i, *jcn + i, &(a->z_array[i].r),
                    &(a->z_array[i].i));
             i++;
@@ -234,23 +236,25 @@ int main (int argc, char *argv[]) {
     const MUMPS_INT icntl_16 = (MUMPS_INT) atoi(argv[4]);
 
 
-    if (a.type == d) {
+    if (a.type == real) {
 
-        DMUMPS_REAL *rhs = malloc(n * sizeof(DMUMPS_REAL));
+        /* DMUMPS_REAL *rhs = malloc(n * sizeof(DMUMPS_REAL)); */
 
-        generate_rhs(n, nnz, irn, a.d_array, rhs);
+        /* generate_rhs(n, nnz, irn, a.d_array, rhs); */
 
         // Initialize MPI
         ierr = MPI_Init(&argc, &argv);
         if (ierr != 0) {
-            perror("ERROR: ");
+            perror("ERROR");
             return EXIT_FAILURE;
         }
         ierr = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         if (ierr != 0) {
-            perror("ERROR: ");
+            perror("ERROR");
             return EXIT_FAILURE;
         }
+
+        dmumps_par.ICNTL(2) = -1;
 
         // Initialize MUMPS
         dmumps_par.comm_fortran = USE_COMM_WORLD;
@@ -273,7 +277,7 @@ int main (int argc, char *argv[]) {
             dmumps_par.irn = irn;
             dmumps_par.jcn = jcn;
             dmumps_par.a   = a.d_array;
-            dmumps_par.rhs = rhs;
+            /* dmumps_par.rhs = rhs; */
             dmumps_par.sym = (int) spec;
         }
 
@@ -286,20 +290,23 @@ int main (int argc, char *argv[]) {
         dmumps_par.ICNTL(14) = 25;
         dmumps_par.ICNTL(16) = icntl_16;
 
-        // Launch MUMPS for Analysis, Factorisation and Resolution
-        dmumps_par.job = 6;
+        // Launch MUMPS for Analysis, Factorisation
+        dmumps_par.job = 4;
         dmumps_c(&dmumps_par);
+        if (dmumps_par.infog[0] != 0) {
+            return EXIT_FAILURE;
+        }
 
         // Deinitialize MUMPS
         dmumps_par.job = JOB_END;
         dmumps_c(&dmumps_par);
 
-        free(rhs);
+        /* free(rhs); */
     }
     else {
-        ZMUMPS_COMPLEX *rhs = malloc(n * sizeof(ZMUMPS_COMPLEX));
+        /* ZMUMPS_COMPLEX *rhs = malloc(n * sizeof(ZMUMPS_COMPLEX)); */
 
-        generate_rhs(n, nnz, irn, a.z_array, rhs);
+        /* generate_rhs(n, nnz, irn, a.z_array, rhs); */
 
         const MUMPS_INT icntl_13 = (MUMPS_INT) atoi(argv[3]);
         const MUMPS_INT icntl_16 = (MUMPS_INT) atoi(argv[4]);
@@ -308,15 +315,16 @@ int main (int argc, char *argv[]) {
         // Initialize MPI
         ierr = MPI_Init(&argc, &argv);
         if (ierr != 0) {
-            perror("ERROR: ");
+            perror("ERROR");
             return EXIT_FAILURE;
         }
         ierr = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         if (ierr != 0) {
-            perror("ERROR: ");
+            perror("ERROR");
             return EXIT_FAILURE;
         }
 
+        zmumps_par.ICNTL(2)     = -1;
         // Initialize MUMPS
         zmumps_par.comm_fortran = USE_COMM_WORLD;
         zmumps_par.job          = JOB_INIT;
@@ -334,7 +342,7 @@ int main (int argc, char *argv[]) {
             zmumps_par.irn = irn;
             zmumps_par.jcn = jcn;
             zmumps_par.a   = a.z_array;
-            zmumps_par.rhs = rhs;
+            /* zmumps_par.rhs = rhs; */
             zmumps_par.sym = (int) spec;
         }
 
@@ -348,14 +356,17 @@ int main (int argc, char *argv[]) {
         zmumps_par.ICNTL(16) = icntl_16;
 
         // Launch MUMPS for Analysis, Factorisation and Resolution
-        zmumps_par.job = 6;
+        zmumps_par.job = 4;
         zmumps_c(&zmumps_par);
+        if (dmumps_par.infog[0] != 0) {
+            return EXIT_FAILURE;
+        }
 
         // Deinitialize MUMPS
         zmumps_par.job = JOB_END;
         zmumps_c(&zmumps_par);
 
-        free(rhs);
+        /* free(rhs); */
     }
 
     // Print the solution for verification
@@ -371,13 +382,18 @@ int main (int argc, char *argv[]) {
 
     ierr = MPI_Finalize();
     if (ierr != 0) {
-        perror("ERROR: ");
+        perror("ERROR");
         return EXIT_FAILURE;
     }
 
     free(irn);
     free(jcn);
-    free(a.d_array);
+    if (a.type == real) {
+        free(a.d_array);
+    }
+    else {
+        free(a.z_array);
+    }
 
     return 0;
 }
