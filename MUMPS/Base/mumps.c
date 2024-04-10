@@ -12,6 +12,8 @@
 #include <dmumps_c.h>
 #include <zmumps_c.h>
 
+#include <spral_random_matrix.h>
+
 #define JOB_INIT       -1
 #define JOB_END        -2
 #define USE_COMM_WORLD -987'654
@@ -184,13 +186,66 @@ void zgenerate_rhs (MUMPS_INT n, MUMPS_INT8 nnz, MUMPS_INT irn[static nnz],
         (n, nnz, irn, a, rhs)
 // clang-format on
 
+
+/** Converts a matrix in the CSC into the COO format.
+ *  It is needed to do the transition between the spral generator and MUMPS.
+ *  This is a naive implementation which only translates the column ptr vector into
+ *  a column coordinate one.
+ *  We assume allocation has been made before calling the method.
+ */
+static void conversion_CSC_to_COO (const ssize_t nnz, const ssize_t n,
+                                   const int64_t ptr[static n],
+                                   MUMPS_INT     jcn[static nnz]) {
+    size_t j = 1;
+    for (ssize_t i = 1; i <= nnz; i++) {
+        while (i >= ptr[j]) {
+            j++;
+        }
+
+        jcn[i - 1] = j;
+    }
+}
+
+
+/** Helper function to print the help on wrong usage or user request
+ */
+static void print_help (const char program_name[]) {
+
+    printf("\x1b[33mUSAGE:\x1b[0m %s -f input_file PAR ICNTL_13 ICNTL_16\n"
+           "       %s data_type N nnz symmetry_type PAR ICNTL_13 ICNTL_16\n"
+           "with\n"
+           "     data_type      0 (real) or 1 (complex)\n"
+           "     N              width/height of the generated matrix\n"
+           "     nnz            number of non-zero (must be < N*N + 1)\n"
+           "     symmetry_type  0 (unsymmetric), 1 (positive_definite), 2 (symmetric)\n"
+           "\nOptions:\n\th\tprint this help and exit\n"
+           "\ts seed\tseed for random generation\n",
+           program_name, program_name);
+}
+
 int main (int argc, char *argv[]) {
 
-    if (argc != 5) {
-        fprintf(stderr, "USAGE: %s input_file PAR ICNTL_13 ICNTL_16\n", argv[0]);
-        return EXIT_FAILURE;
-    }
+    char opt      = -1;
+    bool readfile = false;
+    int  state    = 0;
 
+    // Get the options
+    while ((opt = getopt(argc, argv, "fhs:")) != -1) {
+        switch (opt) {
+            case 'h': // Print help and exit
+                print_help(argv[0]);
+                return EXIT_SUCCESS;
+            case 'f': // Don't use the generator
+                readfile = true;
+                break;
+            case 's': // Provide a seed for the generator
+                state = (int) atoi(optarg);
+                break;
+            default:
+                print_help(argv[0]);
+                return EXIT_FAILURE;
+        }
+    }
 
     MUMPS_INT     n;
     MUMPS_INT8    nnz;
@@ -198,43 +253,132 @@ int main (int argc, char *argv[]) {
     MUMPS_INT    *jcn;
     matrix_t      a;
     specificity_t spec;
+    int           ierr, rank;
 
-    parse_error_t perr = parseMTX(&n, &nnz, &irn, &jcn, &a, &spec, argv[1]);
-    switch (perr) {
-        case NotMatrixMarket:
-            fprintf(stderr, "Not a Matrix Market input!\n");
-            return perr;
-        case Unknown:
-            fprintf(stderr, "Second description term must be matrix\n");
-            return perr;
-        case UnknownType:
-            fprintf(stderr, "Only real/complex numbers are supported\n");
-            return perr;
-        case UnknownFormat:
-            fprintf(stderr, "Only coordinate format is allowed\n");
-            return perr;
-        case UnknownSpecificity:
-            fprintf(stderr, "The form of the matrix must be general or symmetric\n");
-            return perr;
+    if (readfile == true) {
 
-        case FileError:
-        case MallocError:
-            perror("ERROR: ");
+        if ((argc - optind) != 4) {
+            print_help(argv[0]);
             return EXIT_FAILURE;
+        }
 
-        case Success:
-            break;
+        // Read and parse the input matrix
+        parse_error_t perr = parseMTX(&n, &nnz, &irn, &jcn, &a, &spec, argv[optind]);
+        switch (perr) {
+            case NotMatrixMarket:
+                fprintf(stderr, "Not a Matrix Market input!\n");
+                return perr;
+            case Unknown:
+                fprintf(stderr, "Second description term must be matrix\n");
+                return perr;
+            case UnknownType:
+                fprintf(stderr, "Only real/complex numbers are supported\n");
+                return perr;
+            case UnknownFormat:
+                fprintf(stderr, "Only coordinate format is allowed\n");
+                return perr;
+            case UnknownSpecificity:
+                fprintf(stderr,
+                        "The form of the matrix must be general or symmetric\n");
+                return perr;
+
+            case FileError:
+            case MallocError:
+                perror("ERROR");
+                return EXIT_FAILURE;
+
+            case Success:
+                break;
+        }
+        optind++;
+    }
+    else {
+
+        if ((argc - optind) != 7) {
+            print_help(argv[0]);
+            return EXIT_FAILURE;
+        }
+
+        a.type = (typeof(a.type)) atoi(argv[optind++]);
+        n      = (MUMPS_INT) atoi(argv[optind++]);
+        nnz    = (MUMPS_INT8) strtol(argv[optind++], nullptr, 10);
+        spec   = (typeof(spec)) atoi(argv[optind++]);
+
+        enum spral_matrix_type matrix_type = SPRAL_MATRIX_UNSPECIFIED;
+        // The generator returns an error (-3) if nnz is too high in regard of n.
+        // The maximal value of nnz depends on whether the matrix is symmetric or not
+        int64_t                max_nnz     = 0;
+
+        // Translate input parameters into spral enum
+        switch (spec) {
+            case Unsymmetric:
+                max_nnz     = n * n;
+                matrix_type = SPRAL_MATRIX_REAL_UNSYM;
+                break;
+            case Symmetric:
+                max_nnz     = ((n * n) + n) / 2;
+                matrix_type = SPRAL_MATRIX_REAL_SYM_INDEF;
+                break;
+            case SymmetricDefinePositive:
+                max_nnz     = ((n * n) + n) / 2;
+                matrix_type = SPRAL_MATRIX_REAL_SYM_PSDEF;
+                break;
+        }
+
+        // The change of nnz is a bit hacky. A solution would be to take a density
+        // instead of nnz and compute then compute it.
+        if (nnz > max_nnz) {
+            nnz = max_nnz - 1;
+        }
+        if (n > nnz) {
+            nnz = n + 1;
+        }
+
+        // Allocate the various vectors
+        int64_t *ptr = (typeof(ptr)) malloc((n + 1) * sizeof(*ptr));
+
+        irn = (typeof(irn)) malloc(nnz * sizeof(*irn));
+        jcn = (typeof(jcn)) malloc(nnz * sizeof(*jcn));
+
+        if (a.type == real) {
+            a.d_array = (typeof(a.d_array)) malloc(nnz * sizeof(*a.d_array));
+
+            ierr = spral_random_matrix_generate_long(
+                &state, matrix_type, n, n, nnz, ptr, irn, (double *) a.d_array,
+                SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR |
+                    SPRAL_RANDOM_MATRIX_SORT);
+        }
+        // FIXME: complex matrix generation not supported by spral
+        else {
+            matrix_type = -matrix_type;
+            a.z_array   = (typeof(a.z_array)) malloc(nnz * sizeof(*a.z_array));
+
+            ierr = 0;
+            ierr = spral_random_matrix_generate_long(
+                &state, matrix_type, n, n, nnz, ptr, irn, (double *) a.d_array,
+                SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR |
+                    SPRAL_RANDOM_MATRIX_SORT);
+        }
+
+        // Check the generator return code
+        if (ierr != 0) {
+            fprintf(
+                stderr,
+                "\x1b[31mERROR\x1b[0m The matrix generation failed\tERROR CODE: %d\n",
+                ierr);
+            return EXIT_FAILURE;
+        }
+
+        conversion_CSC_to_COO(nnz, n, ptr, jcn);
+        free(ptr);
     }
 
-
-    int            ierr, rank;
     DMUMPS_STRUC_C dmumps_par;
     ZMUMPS_STRUC_C zmumps_par;
 
-    const int       par      = (int) atoi(argv[2]);
-    const MUMPS_INT icntl_13 = (MUMPS_INT) atoi(argv[3]);
-    const MUMPS_INT icntl_16 = (MUMPS_INT) atoi(argv[4]);
-
+    const int       par      = (int) atoi(argv[optind++]);
+    const MUMPS_INT icntl_13 = (MUMPS_INT) atoi(argv[optind++]);
+    const MUMPS_INT icntl_16 = (MUMPS_INT) atoi(argv[optind++]);
 
     if (a.type == real) {
 
@@ -254,11 +398,11 @@ int main (int argc, char *argv[]) {
             return EXIT_FAILURE;
         }
 
-        dmumps_par.ICNTL(2) = -1;
-
         // Initialize MUMPS
         dmumps_par.comm_fortran = USE_COMM_WORLD;
         dmumps_par.job          = JOB_INIT;
+        // Activate logs & metrics only on root rank
+        zmumps_par.ICNTL(2)     = -1;
 
         // This parameter controls the involvement of the root rank in the factorization
         // and solve phase
@@ -287,7 +431,7 @@ int main (int argc, char *argv[]) {
         // This parameter controls the memory relaxation of the MUMPS during
         // factorisation. We need to increase it as some matrix needs large size of
         // temporary memory
-        dmumps_par.ICNTL(14) = 25;
+        dmumps_par.ICNTL(14) = 30;
         dmumps_par.ICNTL(16) = icntl_16;
 
         // Launch MUMPS for Analysis, Factorisation
@@ -324,10 +468,11 @@ int main (int argc, char *argv[]) {
             return EXIT_FAILURE;
         }
 
-        zmumps_par.ICNTL(2)     = -1;
         // Initialize MUMPS
         zmumps_par.comm_fortran = USE_COMM_WORLD;
         zmumps_par.job          = JOB_INIT;
+        // Activate logs & metrics only on root rank
+        zmumps_par.ICNTL(2)     = -1;
 
         zmumps_par.par       = par;
         zmumps_par.ICNTL(13) = icntl_13;
@@ -368,17 +513,6 @@ int main (int argc, char *argv[]) {
 
         /* free(rhs); */
     }
-
-    // Print the solution for verification
-    // TODO: Automate the verification (residual, forward error if possible...)
-    // The residual can be computed by mumps and returned with ICNTL(11) = 2
-    /* if(rank == 0) { */
-    /*     fputs("Solution is : (", stdout); */
-    /*     for(size_t i = 0; i < n; i++) { */
-    /*         printf("%8.2lf, ", rhs[i]); */
-    /*     } */
-    /*     puts(")\n"); */
-    /* } */
 
     ierr = MPI_Finalize();
     if (ierr != 0) {
