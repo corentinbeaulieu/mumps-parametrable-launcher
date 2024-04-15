@@ -1,17 +1,17 @@
 
 option('metis-path',
   type: 'string',
-  value: '/home/coco/Installs/spack/opt/spack/linux-archrolling-zen3/gcc-13.2.1/metis-5.1.0-nt6qk6smsqzm6oxc7i76r7m7qjpvmhdt',
+  value: '/usr',
   description: 'Path to METIS install directory'
 )
 option('spral-path',
   type: 'string',
-  value: '/home/coco/Installs/spral-band-matrix-generator/INSTALL',
+  value: '/usr',
   description: 'Path to SPRAL install directory'
 )
 option('mumps-path',
   type: 'string',
-  value: '/home/coco/Installs/spack/opt/spack/linux-archrolling-zen3/gcc-13.2.1/mumps-5.6.2-bytjtlxra6lx6bjcqdyxn22tzjohclc4',
+  value: '/usr',
   description: 'Path to MUMPS install directory'
 )
 option('doc',
