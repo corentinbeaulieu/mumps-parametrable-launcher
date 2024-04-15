@@ -2,18 +2,19 @@
 
 # Check the inputs
 
-if [[ $# != 7 ]]; then
-    printf >&2 "\e[33mUSAGE:\e[0m %s n nnz symmetry num_proc num_threads par inctl13\n" "$0"
+if [[ $# != 8 ]]; then
+    printf >&2 "\e[33mUSAGE:\e[0m %s n bandwidth density symmetry num_proc num_threads par inctl13\n" "$0"
     exit 1
 fi
 
 n=$1
-nnz=$2
-symmetry=$3
-num_proc=$4
-num_threads=$5
-par=$6
-icntl_13=$7
+bandwidth=$2
+density=$3
+symmetry=$4
+num_proc=$5
+num_threads=$6
+par=$7
+icntl_13=$8
 
 ## FIXME: complex support is broken for the moment. The generator does not support complex matrix.
 ##   We have to find a way to construct complex matrix while keeping the non-singularity property.
@@ -38,8 +39,13 @@ if [[ $n == "" || $(printf "%s" "$n" | grep -E -vo "[1-9][0-9]*") != "" ]]; then
     exit 1
 fi
 
-if [[ $nnz == "" || $(printf "%s" "$nnz" | grep -E -vo "[1-9][0-9]*") != "" ]]; then
-    printf >&2 "\e[31mERROR\e[0m %s is a not a valid integer for nnz\n" "$nnz"
+if [[ $(echo $bandwidth | grep -E -vo "[1-9][0-9]*") != "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is a not a valid integer for bandwidth\n" "$bandwidth"
+    exit 1
+fi
+
+if [[ $(echo $bandwidth | grep -E -vo "0.[0-9]*") != "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is a not a valid real for density\n" "$density"
     exit 1
 fi
 
@@ -72,17 +78,14 @@ rand=$RANDOM
 outputfile="tmp${rand}.out"
 
 # Log the inputs
-printf "%s %d %d %d %d %d %d %d " "$type" "$n" "$nnz" "$symmetry" "$num_proc" "$num_threads" "par" "$icntl_13" >> launch.log
+printf "%s %d %d %lf %d %d %d %d %d " "$type" "$n" "$bandwidth" "$density" "$symmetry" "$num_proc" "$num_threads" "$par" "$icntl_13" >> launch.log
 
 # Launch the MUMPS executable with the given matrix size and symmetry
 KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads"\
     salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=128G --time=00:05:00\
     srun -N 1 -n "$num_proc" ./mumps\
-    "$type_int" "$n" "$nnz" "$symmetry" "$par" "$icntl_13" "$num_threads"\
+    "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads"\
     1> "$outputfile" 2>> err.out
-
-# OMP_NESTED=TRUE OMP_NUM_THREADS="$num_threads" \
-#     mpirun -np "$num_proc" ./mumps "0" "$n" "$nnz" "$symmetry" "$par" "$icntl_13" "$num_threads" 1> "$outputfile" 2>> err.out
 
 exec_error=$(grep -E -o "ERROR RETURN" "$outputfile")
 

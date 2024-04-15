@@ -2,8 +2,8 @@
  *  @brief Definition of the MUMPS lauching related functions
  */
 
-#include <stdlib.h>
 #include "mumps_calls.h"
+#include <stdlib.h>
 
 static int experiment_real (const matrix_t a, const int par, const int icntl_13,
                             const int icntl_16, const bool resolve) {

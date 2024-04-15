@@ -10,6 +10,7 @@
  *  - whether read a matrix or generate it
  *  - call mumps to factorize it
  */
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -71,78 +72,79 @@ int main (int argc, char *argv[]) {
             return EXIT_FAILURE;
         }
 
-        if (rank == MPI_ROOT) {
-            // Read and parse the input matrix
-            parse_error_t perr = parseMTX(argv[optind], &a);
-            switch (perr) {
-                case NotMatrixMarket:
-                    fprintf(stderr, "Not a Matrix Market input!\n");
-                    return perr;
-                case Unknown:
-                    fprintf(stderr, "Second description term must be matrix\n");
-                    return perr;
-                case UnknownType:
-                    fprintf(stderr, "Only real/complex_number numbers are supported\n");
-                    return perr;
-                case UnknownFormat:
-                    fprintf(stderr, "Only coordinate format is allowed\n");
-                    return perr;
-                case UnknownSpecificity:
-                    fprintf(stderr,
-                            "The form of the matrix must be general or symmetric\n");
-                    return perr;
+        // Read and parse the input matrix
+        parse_error_t perr = parseMTX(argv[optind], &a);
+        switch (perr) {
+            case NotMatrixMarket:
+                fprintf(stderr, "Not a Matrix Market input!\n");
+                return perr;
+            case Unknown:
+                fprintf(stderr, "Second description term must be matrix\n");
+                return perr;
+            case UnknownType:
+                fprintf(stderr, "Only real/complex_number numbers are supported\n");
+                return perr;
+            case UnknownFormat:
+                fprintf(stderr, "Only coordinate format is allowed\n");
+                return perr;
+            case UnknownSpecificity:
+                fprintf(stderr,
+                        "The form of the matrix must be general or symmetric\n");
+                return perr;
 
-                case FileError:
-                case MallocError:
-                    perror("ERROR");
-                    return perr;
+            case FileError:
+            case MallocError:
+                perror("ERROR");
+                return perr;
 
-                case Success:
-                    break;
-            }
+            case Success:
+                break;
         }
         optind++;
     }
     else {
 
-        if ((argc - optind) != 7) {
+        if ((argc - optind) != 8) {
             print_help(argv[0]);
             return EXIT_FAILURE;
         }
 
-        a.type = (typeof(a.type)) atoi(argv[optind++]);
-        a.n    = (MUMPS_INT) atoi(argv[optind++]);
-        a.nnz  = (MUMPS_INT8) strtol(argv[optind++], nullptr, 10);
+
+        a.type                    = (typeof(a.type)) atoi(argv[optind++]);
+        a.n                       = (MUMPS_INT) atoi(argv[optind++]);
+        const MUMPS_INT bandwidth = (typeof(bandwidth)) atoi(argv[optind++]);
+        const double    density   = (typeof(density)) atof(argv[optind++]);
+        if ((density > 1.0) || (density <= 0.0)) {
+            print_help(argv[0]);
+            return EXIT_FAILURE;
+        }
         a.spec = (typeof(a.spec)) atoi(argv[optind++]);
 
-        MUMPS_INT              bandwidth   = a.n / 4;
+
         int64_t               *ptr         = nullptr;
         enum spral_matrix_type matrix_type = SPRAL_MATRIX_UNSPECIFIED;
+
         // The generator returns an error (-3) if nnz is too high in regard of n.
         // The maximal value of nnz depends on whether the matrix is symmetric or not
-        int64_t                max_nnz     = 0;
+        int64_t max_nnz = bandwidth * (2lu * a.n - bandwidth - 1lu)
+                          + a.n; //*< Number of elements in the dense band
 
         // Translate input parameters into spral enum
         switch (a.spec) {
             case Unsymmetric:
-                max_nnz     = a.n * a.n;
                 matrix_type = SPRAL_MATRIX_REAL_UNSYM;
                 break;
             case Symmetric:
-                max_nnz     = ((a.n * a.n) + a.n) / 2;
+                max_nnz     = (max_nnz + a.n) / 2;
                 matrix_type = SPRAL_MATRIX_REAL_SYM_INDEF;
                 break;
             case SymmetricDefinePositive:
-                max_nnz     = ((a.n * a.n) + a.n) / 2;
+                max_nnz     = (max_nnz + a.n) / 2;
                 matrix_type = SPRAL_MATRIX_REAL_SYM_PSDEF;
                 break;
         }
+        a.nnz = (typeof(a.nnz)) (density * (double) max_nnz);
 
-        // The change of nnz is a bit hacky. A solution would be to take a density
-        // instead of nnz and compute then compute it.
-        if (a.nnz > max_nnz) {
-            a.nnz = max_nnz - 1;
-        }
         if (a.n > a.nnz) {
             a.nnz = a.n + 1;
         }
@@ -159,8 +161,8 @@ int main (int argc, char *argv[]) {
             ierr = spral_random_matrix_generate_band_long(
                 &state, matrix_type, a.n, a.n, a.nnz, bandwidth, ptr, a.irn,
                 (double *) a.d_array,
-                SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR |
-                    SPRAL_RANDOM_MATRIX_SORT);
+                SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR
+                    | SPRAL_RANDOM_MATRIX_SORT);
         }
         // FIXME: complex_number matrix generation not supported by spral
         else {
@@ -171,8 +173,8 @@ int main (int argc, char *argv[]) {
             ierr = spral_random_matrix_generate_band_long(
                 &state, matrix_type, a.n, a.n, a.nnz, bandwidth, ptr, a.irn,
                 (double *) a.z_array,
-                SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR |
-                    SPRAL_RANDOM_MATRIX_SORT);
+                SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR
+                    | SPRAL_RANDOM_MATRIX_SORT);
         }
 
         // Check the generator return code
@@ -184,15 +186,7 @@ int main (int argc, char *argv[]) {
             return EXIT_FAILURE;
         }
 
-        spral_print_matrix_i64d(-1, matrix_type, a.n, a.n, ptr, a.irn, a.d_array, 10);
-
         conversion_CSC_to_COO(a.nnz, a.n, ptr, a.jcn);
-
-        for (ssize_t i = 0; i < a.nnz; i++) {
-            printf("(%d, %d) = %lf\n", a.irn[i], a.jcn[i], a.d_array[i]);
-        }
-
-
         free(ptr);
     }
 
