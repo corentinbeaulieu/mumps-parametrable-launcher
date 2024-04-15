@@ -7,22 +7,47 @@ For now, it contains scripts and programs to use ML-KAPS on the [MUMPS library](
 
 ### Base
 This directory contains the files for a basic ML-KAPS experiment on MUMPS.
-In this folder, we have the following files:
+In this folder, we have the following files/directories
 - `config.json`: the configuration file for the ML-KAPS experiment.
-- `mumps.c`: source file of a program reading a mtx formatted matrix and calling MUMPS resolution on it.
-- `Makefile`: makefile to compile and link the previous program (**make sure to modify the paths**).
+- `src/`: directory with the sources of a program calling MUMPS resolution on it.
+- `include/`: directory with the include files needed to compile the project.
+- `doc/`: directory with the generated documentation of this project (please see below for generation).
+- `meson.build`: meson configuration to build and install the project 
 - `run_mumps.sh`: script to call the previous program with specific parameters. This is the script called by MLKAPS.
 - `run_mlkaps.batch`: a slurm batch script to launch the ML-KAPS experiment (**make sure to modify the paths**).
 
-#### Build
+#### Installation
+##### Configuration
 To build the `mumps` executable 
 ```sh
-$ make
+$ meson setup builddir --prefix=<install_dir>
 ```
-Make sure you have modified the paths in the `Makefile` to reflect the installation directory on your machine.
+Default paths for the dependency may be wrong, you can modify them with the following option
+```sh
+$ meson setup builddir -Dmetis-path=<metis-root-path> -Dspral-path=<spral-root-path>\
+    -Dmumps-path=<mumps-root-path>
+```
 
-(We are testing the integration of meson to build the project which will simplify the build process
-as no modification will be necessary
+If you are using INTEL's MKL as your BLAS/LAPACK implementation, we must enable it through `-Dmkl=true` option.
+If you want to generate the *Doxygen* documentation, please use `-Ddoc=true` option.
+
+> [!WARNING]
+> If MPI cannot be found, you can use `CC=<mpi compiler wrapper>` as a workaround
+
+##### Compilation
+
+```sh
+$ meson compile -C builddir
+```
+
+##### Installation
+
+```sh
+$ meson install -C builddir
+```
+
+The necessary executables to run an experiment should be located in a `bin` directory in the install directory you specified
+(default to the project root directory).
 
 #### Usage
 The mumps executable has the following usage
@@ -36,8 +61,9 @@ with
      symmetry_type  0 (unsymmetric), 1 (positive_definite), 2 (symmetric)
 
 Options:
-	-h	print this help and exit
-	-s seed	seed for random generation
+    -h	        print this help and exit
+    -s seed 	seed for random generation
+    -r          enable MUMPS resolution stage
 ```
 
 To run an experiment on SLURM based system, we use the `run_mumps.sh` script as followed
@@ -55,8 +81,13 @@ with
 
 
 ### SPRAL
+> [!WARNING]
+> You need a modified version of spral with band matrix generation. 
+> Please find it [here](https://github.com/corentinbeaulieu/spral-band-matrix-generator)
+
 The experiment rely on [SPRAL](https://github.com/ralna/spral) ([documentation](https://www.numerical.rl.ac.uk/spral/doc/latest/C/))
 to generate sparse random matrix.
+
 
 
 ## Dataset
