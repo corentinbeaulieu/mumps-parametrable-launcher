@@ -41,9 +41,10 @@ int main (int argc, char *argv[]) {
     bool readfile = false;
     int  state    = 0;
     bool resolve  = false;
+    bool global   = false;
 
     // Get the options
-    while ((opt = getopt(argc, argv, "fhrs:")) != -1) {
+    while ((opt = getopt(argc, argv, "fghrs:")) != -1) {
         switch (opt) {
             case 'h': // Print help and exit
                 print_help(argv[0]);
@@ -51,8 +52,11 @@ int main (int argc, char *argv[]) {
             case 'f': // Don't use the generator
                 readfile = true;
                 break;
-            case 'r':
+            case 'r': // Do the resolve stage in MUMPS
                 resolve = true;
+                break;
+            case 'g': // Density is global instead of bandwide
+                global = true;
                 break;
             case 's': // Provide a seed for the generator
                 state = (int) atoi(optarg);
@@ -124,10 +128,13 @@ int main (int argc, char *argv[]) {
         int64_t               *ptr         = nullptr;
         enum spral_matrix_type matrix_type = SPRAL_MATRIX_UNSPECIFIED;
 
+        const int64_t max_nnz_band = bandwidth * (2lu * a.n - bandwidth - 1lu) + a.n;
+
         // The generator returns an error (-3) if nnz is too high in regard of n.
         // The maximal value of nnz depends on whether the matrix is symmetric or not
-        int64_t max_nnz = bandwidth * (2lu * a.n - bandwidth - 1lu)
-                          + a.n; //*< Number of elements in the dense band
+        int64_t max_nnz = global
+                              ? a.n * a.n //*< Number of elements in the dense matrix
+                              : max_nnz_band; //*< Number of elements in the dense band
 
         // Translate input parameters into spral enum
         switch (a.spec) {
@@ -138,7 +145,7 @@ int main (int argc, char *argv[]) {
                 max_nnz     = (max_nnz + a.n) / 2;
                 matrix_type = SPRAL_MATRIX_REAL_SYM_INDEF;
                 break;
-            case SymmetricDefinePositive:
+            case SymmetricPositiveDefinite:
                 max_nnz     = (max_nnz + a.n) / 2;
                 matrix_type = SPRAL_MATRIX_REAL_SYM_PSDEF;
                 break;
@@ -148,46 +155,51 @@ int main (int argc, char *argv[]) {
         if (a.n > a.nnz) {
             a.nnz = a.n + 1;
         }
-
-        // Allocate the various vectors
-        ptr = (typeof(ptr)) malloc((a.n + 1) * sizeof(*ptr));
-
-        a.irn = (typeof(a.irn)) malloc(a.nnz * sizeof(*a.irn));
-        a.jcn = (typeof(a.jcn)) malloc(a.nnz * sizeof(*a.jcn));
-
-        if (a.type == real) {
-            a.d_array = (typeof(a.d_array)) malloc(a.nnz * sizeof(*a.d_array));
-
-            ierr = spral_random_matrix_generate_band_long(
-                &state, matrix_type, a.n, a.n, a.nnz, bandwidth, ptr, a.irn,
-                (double *) a.d_array,
-                SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR
-                    | SPRAL_RANDOM_MATRIX_SORT);
-        }
-        // FIXME: complex_number matrix generation not supported by spral
-        else {
-            matrix_type = -matrix_type;
-            a.z_array   = (typeof(a.z_array)) malloc(a.nnz * sizeof(*a.z_array));
-
-            ierr = 0;
-            ierr = spral_random_matrix_generate_band_long(
-                &state, matrix_type, a.n, a.n, a.nnz, bandwidth, ptr, a.irn,
-                (double *) a.z_array,
-                SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR
-                    | SPRAL_RANDOM_MATRIX_SORT);
+        if (a.nnz > max_nnz_band) {
+            a.nnz = max_nnz_band - 1;
         }
 
-        // Check the generator return code
-        if (ierr != 0) {
-            fprintf(
-                stderr,
-                "\x1b[31mERROR\x1b[0m The matrix generation failed\tERROR CODE: %d\n",
-                ierr);
-            return EXIT_FAILURE;
-        }
+        if (rank == 0) {
+            // Allocate the various vectors
+            ptr = (typeof(ptr)) malloc((a.n + 1) * sizeof(*ptr));
 
-        conversion_CSC_to_COO(a.nnz, a.n, ptr, a.jcn);
-        free(ptr);
+            a.irn = (typeof(a.irn)) malloc(a.nnz * sizeof(*a.irn));
+            a.jcn = (typeof(a.jcn)) malloc(a.nnz * sizeof(*a.jcn));
+
+            if (a.type == real) {
+                a.d_array = (typeof(a.d_array)) malloc(a.nnz * sizeof(*a.d_array));
+
+                ierr = spral_random_matrix_generate_band_long(
+                    &state, matrix_type, a.n, a.n, a.nnz, bandwidth, ptr, a.irn,
+                    (double *) a.d_array,
+                    SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR
+                        | SPRAL_RANDOM_MATRIX_SORT);
+            }
+            // FIXME: complex_number matrix generation not supported by spral
+            else {
+                matrix_type = -matrix_type;
+                a.z_array   = (typeof(a.z_array)) malloc(a.nnz * sizeof(*a.z_array));
+
+                ierr = 0;
+                ierr = spral_random_matrix_generate_band_long(
+                    &state, matrix_type, a.n, a.n, a.nnz, bandwidth, ptr, a.irn,
+                    (double *) a.z_array,
+                    SPRAL_RANDOM_MATRIX_FINDEX | SPRAL_RANDOM_MATRIX_NONSINGULAR
+                        | SPRAL_RANDOM_MATRIX_SORT);
+            }
+
+            // Check the generator return code
+            if (ierr != 0) {
+                fprintf(stderr,
+                        "\x1b[31mERROR\x1b[0m The matrix generation failed\tERROR "
+                        "CODE: %d\n",
+                        ierr);
+                return EXIT_FAILURE;
+            }
+
+            conversion_CSC_to_COO(a.nnz, a.n, ptr, a.jcn);
+            free(ptr);
+        }
     }
 
     const int       par      = (int) atoi(argv[optind++]);
@@ -203,13 +215,15 @@ int main (int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    free(a.irn);
-    free(a.jcn);
-    if (a.type == real) {
-        free(a.d_array);
-    }
-    else {
-        free(a.z_array);
+    if (rank == 0) {
+        free(a.irn);
+        free(a.jcn);
+        if (a.type == real) {
+            free(a.d_array);
+        }
+        else {
+            free(a.z_array);
+        }
     }
 
     return 0;

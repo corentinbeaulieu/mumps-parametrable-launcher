@@ -35,9 +35,9 @@ typedef enum {
 
 /** MUMPS values for symmetry */
 typedef enum : int {
-    Unsymmetric             = 0, /**< Not symmetric */
-    SymmetricDefinePositive = 1, /**< Symmetric Positive define */
-    Symmetric               = 2  /**< General symmetric */
+    Unsymmetric               = 0, /**< Not symmetric */
+    SymmetricPositiveDefinite = 1, /**< Symmetric Positive define */
+    Symmetric                 = 2  /**< General symmetric */
 } specificity_t;
 
 /** Generic matrix */
@@ -64,8 +64,7 @@ parse_error_t parseMTX (const char *const input_file, matrix_t a[static 1]);
 
 void dgenerate_rhs (const MUMPS_INT n, const MUMPS_INT8 nnz,
                     const MUMPS_INT   irn[static nnz],
-                    const DMUMPS_REAL values[static nnz],
-                    DMUMPS_REAL rhs[static n]);
+                    const DMUMPS_REAL values[static nnz], DMUMPS_REAL rhs[static n]);
 void zgenerate_rhs (const MUMPS_INT n, const MUMPS_INT8 nnz,
                     const MUMPS_INT      irn[static nnz],
                     const ZMUMPS_COMPLEX values[static nnz],
