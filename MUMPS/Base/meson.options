@@ -24,3 +24,13 @@ option('mkl',
   value: false,
   description: 'Build with MKL as a dependency'
 )
+option('scotch',
+  type: 'boolean',
+  value: false,
+  description: 'Build with SCOTCH as a dependency'
+)
+option('scotch-path',
+  type: 'string',
+  value: '/usr',
+  description: 'Path to SCOTCH install directory'
+)

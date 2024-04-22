@@ -20,6 +20,8 @@ else
   add_global_link_arguments('-fopenmp', language: 'c')
 endif
 
+add_global_arguments('-fanalyzer', language: 'c')
+
 mpi = dependency('mpi', required: false)
 
 metispath = get_option('metis-path') 
@@ -66,6 +68,23 @@ deps = [metis, spral, mumpsdeps]
 # The workaround is to set the env variable CC=mpiicx to compile with mpi enabled
 if mpi.found()
   deps += mpi
+endif
+
+if get_option('scotch')
+  scotchpath = get_option('scotch-path')
+  libscotch = scotchpath / 'lib'
+  incscotch = include_directories(scotchpath / 'include')
+
+  scotch = declare_dependency(
+    dependencies: [
+      cc.find_library('z', required: true),
+      cc.find_library('scotch', dirs: libscotch, required: true),
+      cc.find_library('ptscotch', dirs: libscotch, required: false),
+      cc.find_library('ptesmumps', dirs: libscotch, required: false),
+    ],
+    include_directories: incscotch,
+  )
+  deps += scotch
 endif
 
 if get_option('mkl')

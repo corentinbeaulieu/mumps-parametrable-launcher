@@ -2,8 +2,8 @@
 
 # Check the inputs
 
-if [[ $# != 8 ]]; then
-    printf >&2 "\e[33mUSAGE:\e[0m %s n bandwidth density symmetry num_proc num_threads par inctl13\n" "$0"
+if [[ $# != 9 ]]; then
+    printf >&2 "\e[33mUSAGE:\e[0m %s n bandwidth density symmetry num_proc num_threads par inctl13 ordering\n" "$0"
     exit 1
 fi
 
@@ -15,6 +15,7 @@ num_proc=$5
 num_threads=$6
 par=$7
 icntl_13=$8
+ordering=$9
 
 ## FIXME: complex support is broken for the moment. The generator does not support complex matrix.
 ##   We have to find a way to construct complex matrix while keeping the non-singularity property.
@@ -74,18 +75,26 @@ if [[ $(echo "$icntl_13" | grep -E -o "([1-9][0-9]*)|-1|0") == "" ]]; then
     exit 1
 fi
 
+if [[ $(echo "$ordering" | grep -E -o "[0-4]") == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is not a proper ordering parameter ([0; 4])\n" "$ordering"
+    exit 1
+fi
+
 rand=$RANDOM
 outputfile="tmp${rand}.out"
 
 # Log the inputs
-printf "%s %d %d %lf %d %d %d %d %d " "$type" "$n" "$bandwidth" "$density" "$symmetry" "$num_proc" "$num_threads" "$par" "$icntl_13" >> launch.log
+printf "%s %d %d %d %d %d %d %d " "$type" "$n" "$nnz" "$symmetry" "$num_proc" "$num_threads" "$par" "$icntl_13" >> launch.log
 
 # Launch the MUMPS executable with the given matrix size and symmetry
 KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads"\
     salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=128G --time=00:05:00\
-    srun -N 1 -n "$num_proc" ./mumps\
-    "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads"\
+    srun ./mumps\
+    "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering"\
     1> "$outputfile" 2>> err.out
+
+OMP_NESTED=TRUE OMP_NUM_THREADS="$num_threads" \
+    mpirun -np "$num_proc" --mca accelerator rocm ./mumps "0" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" 1> "$outputfile" 2>> err.out
 
 exec_error=$(grep -E -o "ERROR RETURN" "$outputfile")
 
@@ -103,6 +112,6 @@ factorization_time=$(grep "Elapsed time in factorization driver" "$outputfile" |
 # Compute the total time and return it to mlkaps
 total=$(echo "scale=4; $analysis_time + $factorization_time" | bc)
 printf "%s\n" "$total" >> launch.log
-echo "$total"
+echo "$analysis_time,$factorization_time"
 
 rm -f "$outputfile"

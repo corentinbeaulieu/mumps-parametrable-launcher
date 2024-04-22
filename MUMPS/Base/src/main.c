@@ -69,8 +69,8 @@ int main (int argc, char *argv[]) {
 
     if (readfile == true) {
 
-        if ((argc - optind) != 4) {
-            if (rank == MPI_ROOT) {
+        if ((argc - optind) != 5) {
+            if (rank == 0) {
                 print_help(argv[0]);
             }
             return EXIT_FAILURE;
@@ -108,7 +108,7 @@ int main (int argc, char *argv[]) {
     }
     else {
 
-        if ((argc - optind) != 8) {
+        if ((argc - optind) != 9) {
             print_help(argv[0]);
             return EXIT_FAILURE;
         }
@@ -119,7 +119,10 @@ int main (int argc, char *argv[]) {
         const MUMPS_INT bandwidth = (typeof(bandwidth)) atoi(argv[optind++]);
         const double    density   = (typeof(density)) atof(argv[optind++]);
         if ((density > 1.0) || (density <= 0.0)) {
-            print_help(argv[0]);
+            if (rank == 0) {
+                fprintf(stderr, "\x1b[31mERROR\x1b[0m Wrong density provided\n");
+                print_help(argv[0]);
+            }
             return EXIT_FAILURE;
         }
         a.spec = (typeof(a.spec)) atoi(argv[optind++]);
@@ -202,12 +205,13 @@ int main (int argc, char *argv[]) {
         }
     }
 
-    const int       par      = (int) atoi(argv[optind++]);
-    const MUMPS_INT icntl_13 = (MUMPS_INT) atoi(argv[optind++]);
-    const MUMPS_INT icntl_16 = (MUMPS_INT) atoi(argv[optind++]);
+    const int               par             = (int) atoi(argv[optind++]);
+    const MUMPS_INT         icntl_13        = (MUMPS_INT) atoi(argv[optind++]);
+    const MUMPS_INT         icntl_16        = (MUMPS_INT) atoi(argv[optind++]);
+    const partition_agent_t partition_agent = (int) atoi(argv[optind++]);
 
 
-    run_experiment(a, par, icntl_13, icntl_16, resolve);
+    run_experiment(a, par, icntl_13, icntl_16, resolve, partition_agent);
 
     ierr = MPI_Finalize();
     if (ierr != 0) {

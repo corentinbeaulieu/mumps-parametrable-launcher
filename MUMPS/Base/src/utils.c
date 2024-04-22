@@ -211,7 +211,7 @@ void print_help (const char program_name[]) {
 
     printf(
         "\x1b[33mUSAGE:\x1b[0m %s -f input_file PAR ICNTL_13 ICNTL_16\n"
-        "       %s data_type N bandwith density symmetry_type PAR ICNTL_13 ICNTL_16\n"
+        "       %s data_type N bandwith density symmetry_type PAR ICNTL_13 ICNTL_16 ordering\n"
         "with\n"
         "     data_type      0 (real) or 1 (complex_number)\n"
         "     N              width/height of the generated matrix\n"
@@ -220,6 +220,7 @@ void print_help (const char program_name[]) {
         "     symmetry_type  0 (unsymmetric), 1 (positive_definite), 2 (symmetric)\n"
         "\nOptions:\n\t-h\tprint this help and exit\n"
         "\t-s seed\tseed for random generation\n"
-        "\t-r\tdo the resolving phase\n\n",
+        "\t-r\tdo the resolving phase\n\n"
+        "\t-g\tuse global matrix density\n\n",
         program_name, program_name);
 }
