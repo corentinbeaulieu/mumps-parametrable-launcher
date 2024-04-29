@@ -34,6 +34,11 @@ If you want to generate the *Doxygen* documentation, please use `-Ddoc=true` opt
 > [!WARNING]
 > If MPI cannot be found, you can use `CC=<mpi compiler wrapper>` as a workaround
 
+If you want to use SCOTCH as an ordering library, consider the following 
+```sh
+$ meson setup builddir -Dscotch=true -Dscotch-path=<scotch-root-path>
+```
+
 ##### Compilation
 
 ```sh
@@ -52,32 +57,46 @@ The necessary executables to run an experiment should be located in a `bin` dire
 #### Usage
 The mumps executable has the following usage
 ```
-USAGE: ./mumps -f input_file PAR ICNTL_13 ICNTL_16
-       ./mumps data_type N nnz symmetry_type PAR ICNTL_13 ICNTL_16
+USAGE: ./mumps -i input_file PAR ICNTL_13 ICNTL_16 ordering
+       ./mumps data_type N bandwidth density symmetry_type PAR ICNTL_13 ICNTL_16 ordering
 with
      data_type      0 (real) or 1 (complex)
      N              width/height of the generated matrix
-     nnz            number of non-zero (must be < N*N + 1)
+     bandwidth      maximal upper/lower bandwidth of the generated matrix
+     density        density of the bandwidth (total matrix with -g)
      symmetry_type  0 (unsymmetric), 1 (positive_definite), 2 (symmetric)
+     ordering       ordering solution (0 default, 1 MeTiS, 2 PORD, 3 SCOTCH, 4 PT-SCOTCH)
 
 Options:
     -h	        print this help and exit
     -s seed 	seed for random generation
+    -a          do the analysis stage
+    -f          do the factorization stage
     -r          enable MUMPS resolution stage
+    -g          consider global matrix density instead of band ones
 ```
+By default, if neither of the `afr` options are passed, the program calls MUMPS analysis and factorization
+(equivalent to `-af`).
 
 To run an experiment on SLURM based system, we use the `run_mumps.sh` script as followed
 ```
-./run_mumps.sh n nnz symmetry num_proc num_threads par inctl13
+./run_mumps.sh n bandwidth density symmetry num_proc num_threads par inctl13 ordering
 ```
 with
 - **n** Rank of the matrix
-- **nnz** Number of non-zero elements in the generated matrix 
+- **bandwidth** Maximal upper/lower bandwidth of the matrix
+- **density** Global density of nnz in the matrix ($\frac{nnz}{n^2}$)
 - **symmetry** Type of symmetry of the matrix (please see `mumps` executable usage for further details)
 - **num_proc** Number of MPI ranks to run with
 - **num_theads** Number of OpenMP threads to run with
 - **par** Value of the PAR MUMPS parameter (Userguide p. 26)
-- **inctl13** Value of the INCTL(13) MUMPS parameter (Userguide p. 75)
+- **inctl13** Value of the _INCTL(13)_ MUMPS parameter (Userguide p. 75)
+- **ordering** Which ordering solution to use (change _ICNTL(7)_, _ICNTL(28)_ and _ICNTL(29)_)
+    - **0** Use automatic MUMPS choice (_ICNTL(7)_ = 7)
+    - **1** Use MeTiS (_ICNTL(7)_ = 5)
+    - **2** Use PORD  (_ICNTL(7)_ = 4)
+    - **3** Use SCOTCH (_ICNTL(7)_ = 3)
+    - **4** Use PT-SCOTCH (_ICNTL(27)_ = 2 _ICNTL(29)_ = 1)
 
 
 ### SPRAL
