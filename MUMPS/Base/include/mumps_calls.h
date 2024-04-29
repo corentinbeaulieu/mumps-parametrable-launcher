@@ -17,6 +17,8 @@ enum job_e : int {
     JOB_ANA_FACTO     = 4,  /*!< Perform analysis and factorisation phase */
     JOB_FACT_RES      = 5,  /*!< Perform factorisation and resolution phase */
     JOB_ANA_FACTO_RES = 6,  /*!< Perform analysis, factorisation and resolution phase */
+    JOB_SAVE          = 7,  /*!< Save current state */
+    JOB_RESTORE       = 8,  /*!< Restore past state */
 };
 
 /** @brief Possible ordering strategies allowed */
@@ -53,11 +55,9 @@ int mumps_run_res (mumps_t info[static 1]);
 
 int mumps_finalize (mumps_t info[static 1]);
 
-int mumps_save (mumps_t info[static 1], const size_t nb_char,
-                const char exp_name[static nb_char]);
+int mumps_save (mumps_t info[static 1]);
 
-int mumps_restore (mumps_t info[static 1], const size_t nb_char,
-                   const char exp_name[static nb_char]);
+int mumps_restore (mumps_t info[static 1]);
 
 // The following is at the end to disable some weird doxygen behaviour
 /** @def USE_COMM_WORLD

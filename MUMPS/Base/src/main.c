@@ -129,13 +129,11 @@ int main (int argc, char *argv[]) {
     }
     else {
 
-        fflush(stdout);
         if ((argc - optind) != 9) {
             print_help(argv[0]);
             MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
 
-        fflush(stdout);
         a.type = (typeof(a.type)) atoi(argv[optind++]);
         a.n    = (MUMPS_INT) atoi(argv[optind++]);
 
@@ -228,7 +226,6 @@ int main (int argc, char *argv[]) {
                 MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
             }
 
-            fflush(stdout);
             conversion_CSC_to_COO(a.nnz, a.n, ptr, a.jcn);
             free(ptr);
         }
@@ -244,19 +241,25 @@ int main (int argc, char *argv[]) {
     };
 
 
-    fflush(stdout);
     mumps_init(&info);
     if (analysis == true) {
         mumps_run_ana(&info);
     }
+    else if (mumps_restore(&info) != EXIT_SUCCESS) {
+        mumps_run_ana(&info);
+    }
+
     if (facto == true) {
         mumps_run_facto(&info);
     }
+    else {
+        mumps_save(&info);
+    }
+
     if (resolve == true) {
         mumps_run_res(&info);
     }
     mumps_finalize(&info);
-    fflush(stdout);
 
     ierr = MPI_Finalize();
     if (ierr != MPI_SUCCESS) {

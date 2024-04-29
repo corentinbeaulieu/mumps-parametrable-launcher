@@ -3,6 +3,7 @@
  */
 
 #include "mumps_calls.h"
+#include <mpi.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -512,8 +513,9 @@ static int _mumps_save_real (mumps_t info[static 1], const size_t nb_char,
                              const char exp_name[static nb_char]) {
     int ret = EXIT_SUCCESS;
 
-    strncpy(info->mumps_struct.dmumps_par.save_dir, exp_name, nb_char);
-    info->mumps_struct.dmumps_par.job = 7;
+    strncpy(info->mumps_struct.dmumps_par.save_dir, "Saved_analysis", 15);
+    strncpy(info->mumps_struct.dmumps_par.save_prefix, exp_name, nb_char);
+    info->mumps_struct.dmumps_par.job = JOB_SAVE;
 
     dmumps_c(&info->mumps_struct.dmumps_par);
     if (info->mumps_struct.dmumps_par.infog[0] != 0) {
@@ -536,8 +538,9 @@ static int _mumps_save_complex (mumps_t info[static 1], const size_t nb_char,
                                 const char exp_name[static nb_char]) {
     int ret = EXIT_SUCCESS;
 
-    strncpy(info->mumps_struct.zmumps_par.save_dir, exp_name, nb_char);
-    info->mumps_struct.zmumps_par.job = 7;
+    strncpy(info->mumps_struct.dmumps_par.save_dir, "Saved_analysis", 15);
+    strncpy(info->mumps_struct.zmumps_par.save_prefix, exp_name, nb_char);
+    info->mumps_struct.zmumps_par.job = JOB_SAVE;
 
     zmumps_c(&info->mumps_struct.zmumps_par);
     if (info->mumps_struct.zmumps_par.infog[0] != 0) {
@@ -559,16 +562,21 @@ static int _mumps_save_complex (mumps_t info[static 1], const size_t nb_char,
  *
  * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
-int mumps_save (mumps_t info[static 1], const size_t nb_char,
-                const char exp_name[static nb_char]) {
+int mumps_save (mumps_t info[static 1]) {
     int ret = EXIT_SUCCESS;
+
+    int size = 0;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    char name[256] = { 0 };
+    snprintf(name, 256, "exp-%d-%ld-%d-%d-%dx%d-%d", info->a.n, info->a.nnz,
+             info->a.spec, info->partition_agent, size, info->icntl_16, info->par);
 
     switch (info->a.type) {
         case real:
-            _mumps_save_real(info, nb_char, exp_name);
+            ret = _mumps_save_real(info, 256, name);
             break;
         case complex_number:
-            _mumps_save_complex(info, nb_char, exp_name);
+            ret = _mumps_save_complex(info, 256, name);
             break;
         default:
             ret = EXIT_FAILURE;
@@ -591,8 +599,9 @@ static int _mumps_restore_real (mumps_t info[static 1], const size_t nb_char,
                                 const char exp_name[static nb_char]) {
     int ret = EXIT_SUCCESS;
 
-    strncpy(info->mumps_struct.dmumps_par.save_dir, exp_name, nb_char);
-    info->mumps_struct.dmumps_par.job = 8;
+    strncpy(info->mumps_struct.dmumps_par.save_dir, "Saved_analysis", 15);
+    strncpy(info->mumps_struct.dmumps_par.save_prefix, exp_name, nb_char);
+    info->mumps_struct.dmumps_par.job = JOB_RESTORE;
 
     dmumps_c(&info->mumps_struct.dmumps_par);
     if (info->mumps_struct.dmumps_par.infog[0] != 0) {
@@ -615,8 +624,9 @@ static int _mumps_restore_complex (mumps_t info[static 1], const size_t nb_char,
                                    const char exp_name[static nb_char]) {
     int ret = EXIT_SUCCESS;
 
-    strncpy(info->mumps_struct.zmumps_par.save_dir, exp_name, nb_char);
-    info->mumps_struct.zmumps_par.job = 8;
+    strncpy(info->mumps_struct.dmumps_par.save_dir, "Saved_analysis", 15);
+    strncpy(info->mumps_struct.zmumps_par.save_prefix, exp_name, nb_char);
+    info->mumps_struct.zmumps_par.job = JOB_RESTORE;
 
     zmumps_c(&info->mumps_struct.zmumps_par);
     if (info->mumps_struct.zmumps_par.infog[0] != 0) {
@@ -633,21 +643,33 @@ static int _mumps_restore_complex (mumps_t info[static 1], const size_t nb_char,
  * based on the type of the elements in the system.
  *
  * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
- * @param[in] nb_char  Size of @p exp_name
- * @param[in] exp_name Unique name of the experiment. Used to name the files.
  *
  * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
-int mumps_restore (mumps_t info[static 1], const size_t nb_char,
-                   const char exp_name[static nb_char]) {
+int mumps_restore (mumps_t info[static 1]) {
     int ret = EXIT_SUCCESS;
+
+    int size = 0;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    char name[256] = { 0 };
+    snprintf(name, 256, "exp-%d-%ld-%d-%d-%dx%d-%d", info->a.n, info->a.nnz,
+             info->a.spec, info->partition_agent, size, info->icntl_16, info->par);
+
 
     switch (info->a.type) {
         case real:
-            _mumps_restore_real(info, nb_char, exp_name);
+            ret = _mumps_fill_struct_real(info);
+            if (ret != EXIT_SUCCESS) {
+                break;
+            }
+            ret = _mumps_restore_real(info, 256, name);
             break;
         case complex_number:
-            _mumps_restore_complex(info, nb_char, exp_name);
+            ret = _mumps_fill_struct_complex(info);
+            if (ret != EXIT_SUCCESS) {
+                break;
+            }
+            ret = _mumps_restore_complex(info, 256, name);
             break;
         default:
             ret = EXIT_FAILURE;

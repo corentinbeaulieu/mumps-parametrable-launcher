@@ -85,7 +85,7 @@ parse_error_t parseMTX (const char *const input_file, matrix_t a[static 1]) {
         }
 
         // Get the elements of the matrix
-        MUMPS_INT8 i   = 0;
+        MUMPS_INT8 i = 0;
         while (i < a->nnz && getline(&buffer, &buffer_size, fd) > 0) {
             sscanf(buffer, "%d %d %lf", a->irn + i, a->jcn + i, a->d_array + i);
             i++;
@@ -211,7 +211,7 @@ void conversion_CSC_to_COO (const ssize_t nnz, const ssize_t n,
 void print_help (const char program_name[]) {
 
     printf(
-        "\x1b[33mUSAGE:\x1b[0m %s - input_file PAR ICNTL_13 ICNTL_16\n"
+        "\x1b[33mUSAGE:\x1b[0m %s -i input_file PAR ICNTL_13 ICNTL_16\n"
         "       %s data_type N bandwith density symmetry_type PAR ICNTL_13 ICNTL_16 "
         "ordering\n"
         "with\n"
