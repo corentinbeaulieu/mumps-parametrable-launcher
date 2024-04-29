@@ -85,7 +85,7 @@ parse_error_t parseMTX (const char *const input_file, matrix_t a[static 1]) {
         }
 
         // Get the elements of the matrix
-        MUMPS_INT8 i = 0;
+        MUMPS_INT8 i   = 0;
         while (i < a->nnz && getline(&buffer, &buffer_size, fd) > 0) {
             sscanf(buffer, "%d %d %lf", a->irn + i, a->jcn + i, a->d_array + i);
             i++;
@@ -131,8 +131,9 @@ parse_error_t parseMTX (const char *const input_file, matrix_t a[static 1]) {
  * @param[out] rhs        The Right Hand Side generated
  */
 void dgenerate_rhs (const MUMPS_INT n, const MUMPS_INT8 nnz,
-                    const MUMPS_INT   irn[static nnz],
-                    const DMUMPS_REAL values[static nnz], DMUMPS_REAL rhs[static n]) {
+                    const MUMPS_INT   irn[restrict static nnz],
+                    const DMUMPS_REAL values[restrict static nnz],
+                    DMUMPS_REAL       rhs[restrict static n]) {
 
     memset(rhs, 0, n * sizeof(double));
 
@@ -163,9 +164,9 @@ void dgenerate_rhs (const MUMPS_INT n, const MUMPS_INT8 nnz,
  * @param[out] rhs        The Right Hand Side generated
  */
 void zgenerate_rhs (const MUMPS_INT n, const MUMPS_INT8 nnz,
-                    const MUMPS_INT      irn[static nnz],
-                    const ZMUMPS_COMPLEX values[static nnz],
-                    ZMUMPS_COMPLEX       rhs[static n]) {
+                    const MUMPS_INT      irn[restrict static nnz],
+                    const ZMUMPS_COMPLEX values[restrict static nnz],
+                    ZMUMPS_COMPLEX       rhs[restrict static n]) {
 
     memset(rhs, 0, n * sizeof(ZMUMPS_COMPLEX));
 
@@ -191,8 +192,8 @@ void zgenerate_rhs (const MUMPS_INT n, const MUMPS_INT8 nnz,
  * @param[out] jcn      COO columns indices
  */
 void conversion_CSC_to_COO (const ssize_t nnz, const ssize_t n,
-                            const int64_t ptr[static n + 1],
-                            MUMPS_INT     jcn[static nnz]) {
+                            const int64_t ptr[restrict static n + 1],
+                            MUMPS_INT     jcn[restrict static nnz]) {
 
     for (ssize_t j = 0; j < n; j++) {
         for (ssize_t k = ptr[j]; k < ptr[j + 1]; k++) {
@@ -210,8 +211,9 @@ void conversion_CSC_to_COO (const ssize_t nnz, const ssize_t n,
 void print_help (const char program_name[]) {
 
     printf(
-        "\x1b[33mUSAGE:\x1b[0m %s -f input_file PAR ICNTL_13 ICNTL_16\n"
-        "       %s data_type N bandwith density symmetry_type PAR ICNTL_13 ICNTL_16 ordering\n"
+        "\x1b[33mUSAGE:\x1b[0m %s - input_file PAR ICNTL_13 ICNTL_16\n"
+        "       %s data_type N bandwith density symmetry_type PAR ICNTL_13 ICNTL_16 "
+        "ordering\n"
         "with\n"
         "     data_type      0 (real) or 1 (complex_number)\n"
         "     N              width/height of the generated matrix\n"
@@ -220,7 +222,9 @@ void print_help (const char program_name[]) {
         "     symmetry_type  0 (unsymmetric), 1 (positive_definite), 2 (symmetric)\n"
         "\nOptions:\n\t-h\tprint this help and exit\n"
         "\t-s seed\tseed for random generation\n"
-        "\t-r\tdo the resolving phase\n\n"
+        "\t-a\tdo the analysis phase (default: -af)\n"
+        "\t-f\tdo the factorisation phase (default: -af)\n"
+        "\t-r\tdo the resolving phase (default: -af)\n"
         "\t-g\tuse global matrix density\n\n",
         program_name, program_name);
 }

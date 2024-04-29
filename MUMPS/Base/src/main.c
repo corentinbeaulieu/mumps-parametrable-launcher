@@ -1,11 +1,14 @@
-/** @mainpage This project aims at providing a parametrable executable to measure mumps
+/** @mainpage MUMPS Parametrable launcher
+ *
+ * This project aims at providing a parametrable executable to measure mumps
  * execution with different parameters. The main goal is to use machine learning methods
  * to predict the best parameters to speedup the resolution of a linear system with
  * MUMPS
  */
 
 /** @file main.c
- *  @brief Contains the main function of the program which
+ *
+ *  Contains the main function of the program which
  *  - check the inputs
  *  - whether read a matrix or generate it
  *  - call mumps to factorize it
@@ -27,32 +30,40 @@ int main (int argc, char *argv[]) {
 
     // Initialize MPI
     ierr = MPI_Init(&argc, &argv);
-    if (ierr != 0) {
+    if (ierr != MPI_SUCCESS) {
         perror("ERROR");
         return EXIT_FAILURE;
     }
     ierr = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if (ierr != 0) {
+    if (ierr != MPI_SUCCESS) {
         perror("ERROR");
-        return EXIT_FAILURE;
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
     char opt      = -1;
     bool readfile = false;
     int  state    = 0;
+    bool analysis = false;
+    bool facto    = false;
     bool resolve  = false;
     bool global   = false;
 
     // Get the options
-    while ((opt = getopt(argc, argv, "fghrs:")) != -1) {
+    while ((opt = getopt(argc, argv, "ighfars:")) != -1) {
         switch (opt) {
             case 'h': // Print help and exit
                 print_help(argv[0]);
                 return EXIT_SUCCESS;
-            case 'f': // Don't use the generator
+            case 'i': // Don't use the generator
                 readfile = true;
                 break;
-            case 'r': // Do the resolve stage in MUMPS
+            case 'a': // Do the Analysis stage in MUMPS
+                analysis = true;
+                break;
+            case 'f': // Do the Factorization stage in MUMPS
+                facto = true;
+                break;
+            case 'r': // Do the Resolve stage in MUMPS
                 resolve = true;
                 break;
             case 'g': // Density is global instead of bandwide
@@ -63,17 +74,27 @@ int main (int argc, char *argv[]) {
                 break;
             default:
                 print_help(argv[0]);
-                return EXIT_FAILURE;
+                MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
     }
+
+    if (facto == false && resolve == true) {
+        fprintf(stderr, "ERROR: The factorization must be performed in order to "
+                        "resolve the system\n");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+
+    if (analysis == false && facto == false && resolve == false) {
+        analysis = true;
+        facto    = true;
+    }
+
 
     if (readfile == true) {
 
         if ((argc - optind) != 5) {
-            if (rank == 0) {
-                print_help(argv[0]);
-            }
-            return EXIT_FAILURE;
+            print_help(argv[0]);
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
 
         // Read and parse the input matrix
@@ -108,22 +129,29 @@ int main (int argc, char *argv[]) {
     }
     else {
 
+        fflush(stdout);
         if ((argc - optind) != 9) {
             print_help(argv[0]);
-            return EXIT_FAILURE;
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
 
+        fflush(stdout);
+        a.type = (typeof(a.type)) atoi(argv[optind++]);
+        a.n    = (MUMPS_INT) atoi(argv[optind++]);
 
-        a.type                    = (typeof(a.type)) atoi(argv[optind++]);
-        a.n                       = (MUMPS_INT) atoi(argv[optind++]);
-        const MUMPS_INT bandwidth = (typeof(bandwidth)) atoi(argv[optind++]);
-        const double    density   = (typeof(density)) atof(argv[optind++]);
+        const double bandwidth_ratio = (typeof(bandwidth_ratio)) atof(argv[optind++]);
+        if ((bandwidth_ratio > 1.0) || (bandwidth_ratio <= 0.0)) {
+            fprintf(stderr, "\x1b[31mERROR\x1b[0m Wrong bandwidth provided\n");
+            print_help(argv[0]);
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        }
+        const MUMPS_INT bandwidth = (MUMPS_INT) (bandwidth_ratio * (double) a.n);
+
+        const double density = (typeof(density)) atof(argv[optind++]);
         if ((density > 1.0) || (density <= 0.0)) {
-            if (rank == 0) {
-                fprintf(stderr, "\x1b[31mERROR\x1b[0m Wrong density provided\n");
-                print_help(argv[0]);
-            }
-            return EXIT_FAILURE;
+            fprintf(stderr, "\x1b[31mERROR\x1b[0m Wrong density provided\n");
+            print_help(argv[0]);
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
         a.spec = (typeof(a.spec)) atoi(argv[optind++]);
 
@@ -197,24 +225,41 @@ int main (int argc, char *argv[]) {
                         "\x1b[31mERROR\x1b[0m The matrix generation failed\tERROR "
                         "CODE: %d\n",
                         ierr);
-                return EXIT_FAILURE;
+                MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
             }
 
+            fflush(stdout);
             conversion_CSC_to_COO(a.nnz, a.n, ptr, a.jcn);
             free(ptr);
         }
     }
 
-    const int               par             = (int) atoi(argv[optind++]);
-    const MUMPS_INT         icntl_13        = (MUMPS_INT) atoi(argv[optind++]);
-    const MUMPS_INT         icntl_16        = (MUMPS_INT) atoi(argv[optind++]);
-    const partition_agent_t partition_agent = (int) atoi(argv[optind++]);
+    mumps_t info = {
+        .a               = a,
+        .rhs             = nullptr,
+        .par             = (int) atoi(argv[optind]),
+        .icntl_13        = (MUMPS_INT) atoi(argv[optind + 1]),
+        .icntl_16        = (MUMPS_INT) atoi(argv[optind + 2]),
+        .partition_agent = (int) atoi(argv[optind + 3]),
+    };
 
 
-    run_experiment(a, par, icntl_13, icntl_16, resolve, partition_agent);
+    fflush(stdout);
+    mumps_init(&info);
+    if (analysis == true) {
+        mumps_run_ana(&info);
+    }
+    if (facto == true) {
+        mumps_run_facto(&info);
+    }
+    if (resolve == true) {
+        mumps_run_res(&info);
+    }
+    mumps_finalize(&info);
+    fflush(stdout);
 
     ierr = MPI_Finalize();
-    if (ierr != 0) {
+    if (ierr != MPI_SUCCESS) {
         perror("ERROR");
         return EXIT_FAILURE;
     }

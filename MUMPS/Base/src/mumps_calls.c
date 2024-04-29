@@ -4,254 +4,655 @@
 
 #include "mumps_calls.h"
 #include <stdlib.h>
+#include <string.h>
 
 /**
- * @brief Launch MUMPS on a real matrix
+ * @brief Fills the dmumps structure for MUMPS internal use
  *
- * @param[in] a                 Real matrix to factorize
- * @param[in] par               MUMPS PAR parameter controlling the involvement of the
- * root process in factorization
- * @param[in] icntl_13          MUMPS ICNTL(13) parameter controlling the factorization
- * of the root node
- * @param[in] icntl_16          MUMPS ICNTL(16) parameter controlling the number of
- * threads
- * @param[in] resolve           Generate a rhs and do the resolution stage if true only
- *   factorize otherwise
- * @param[in] partition_agent   Which ordering library to use (see refer to @ref
- * partition_agent_t)
+ * @param[inout] info Caracteristic of the experiment containing MUMPS struct (see @ref
+ * mumps_t)
  *
- * @return    EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ * @return EXIT_SUCCES on success, EXIT_FAILURE otherwise
  */
-static int experiment_real (const matrix_t a, const int par, const int icntl_13,
-                            const int icntl_16, const bool resolve,
-                            const partition_agent_t partition_agent) {
-
-    DMUMPS_STRUC_C dmumps_par;
-
-    DMUMPS_REAL *rhs = nullptr;
-
-    if (resolve == true) {
-        rhs = (typeof(rhs)) malloc(a.n * sizeof(*rhs));
-        generate_rhs(a.n, a.nnz, a.irn, a.d_array, rhs);
-    }
+static int _mumps_fill_struct_real (mumps_t info[static 1]) {
 
     // Define the system
-    dmumps_par.n   = a.n;
-    dmumps_par.nnz = a.nnz;
-    dmumps_par.irn = a.irn;
-    dmumps_par.jcn = a.jcn;
-    dmumps_par.a   = a.d_array;
-    dmumps_par.rhs = rhs;
-    dmumps_par.sym = (int) a.spec;
+    info->mumps_struct.dmumps_par.n   = info->a.n;
+    info->mumps_struct.dmumps_par.nnz = info->a.nnz;
+    info->mumps_struct.dmumps_par.irn = info->a.irn;
+    info->mumps_struct.dmumps_par.jcn = info->a.jcn;
+    info->mumps_struct.dmumps_par.a   = info->a.d_array;
+    info->mumps_struct.dmumps_par.sym = (int) info->a.spec;
 
-    dmumps_par.ICNTL(2) = -1;
-    dmumps_par.ICNTL(5) = 0;
-
-    // Initialize MUMPS
-    dmumps_par.comm_fortran = USE_COMM_WORLD;
-    dmumps_par.job          = JOB_INIT;
     // Activate logs & metrics only on root rank
-    dmumps_par.ICNTL(2)     = -1;
-    dmumps_par.ICNTL(5)     = 0;
+    info->mumps_struct.dmumps_par.ICNTL(2)  = -1;
+    info->mumps_struct.dmumps_par.ICNTL(5)  = 0;
+    info->mumps_struct.dmumps_par.ICNTL(11) = 2;
     // Memory relaxation
-    dmumps_par.ICNTL(14)    = 30;
-
+    info->mumps_struct.dmumps_par.ICNTL(14) = 30;
     // Sequential ordering as default
-    dmumps_par.ICNTL(28) = 1;
-    switch (partition_agent) {
+    info->mumps_struct.dmumps_par.ICNTL(28) = 1;
+
+    // Select ordering
+    switch (info->partition_agent) {
         case Automatic:
-            dmumps_par.ICNTL(7)  = 7; // Automatic choice of sequential ordering
-            dmumps_par.ICNTL(28) = 0; // Automatic choice between seq or par ordering
-            dmumps_par.ICNTL(29) = 0; // Automatic choice of parallel ordering
+            info->mumps_struct.dmumps_par.ICNTL(7) =
+                7; // Automatic choice of sequential ordering
+            info->mumps_struct.dmumps_par.ICNTL(28) =
+                0; // Automatic choice between seq or par ordering
+            info->mumps_struct.dmumps_par.ICNTL(29) =
+                0; // Automatic choice of parallel ordering
             break;
         case Metis:
-            dmumps_par.ICNTL(7) = 5;
+            info->mumps_struct.dmumps_par.ICNTL(7) = 5;
             break;
         case Pord:
-            dmumps_par.ICNTL(7) = 4;
+            info->mumps_struct.dmumps_par.ICNTL(7) = 4;
             break;
         case Scotch:
-            dmumps_par.ICNTL(7) = 3;
+            info->mumps_struct.dmumps_par.ICNTL(7) = 3;
             break;
         case PTScotch:
-            dmumps_par.ICNTL(28) = 2;
-            dmumps_par.ICNTL(29) = 1;
+            info->mumps_struct.dmumps_par.ICNTL(28) = 2;
+            info->mumps_struct.dmumps_par.ICNTL(29) = 1;
+            break;
+        default:
+            return EXIT_FAILURE;
             break;
     }
 
     // This parameter controls the involvement of the root rank in the factorization
     // and solve phase
-    dmumps_par.par       = par;
+    info->mumps_struct.dmumps_par.par       = info->par;
     // This parameter controls the parallelism of factorization of the root node
-    dmumps_par.ICNTL(13) = icntl_13;
+    info->mumps_struct.dmumps_par.ICNTL(13) = info->icntl_13;
     // This parameter explicitly request a number of OMP threads
-    dmumps_par.ICNTL(16) = icntl_16;
+    info->mumps_struct.dmumps_par.ICNTL(16) = info->icntl_16;
 
-    dmumps_c(&dmumps_par);
-
-    // This parameter controls the involvement of the root rank in the factorization
-    // and solve phase
-    dmumps_par.par = par;
-    // Define the system
-    dmumps_par.n   = a.n;
-    dmumps_par.nnz = a.nnz;
-    dmumps_par.irn = a.irn;
-    dmumps_par.jcn = a.jcn;
-    dmumps_par.a   = a.d_array;
-    dmumps_par.rhs = rhs;
-    dmumps_par.sym = (int) a.spec;
-
-    // Enables residual computation and printing
-    dmumps_par.ICNTL(11) = 2;
-    dmumps_par.ICNTL(13) = icntl_13;
-    // This parameter controls the memory relaxation of the MUMPS during
-    // factorisation. We need to increase it as some matrix needs large size of
-    // temporary memory
-    dmumps_par.ICNTL(14) = 30;
-    dmumps_par.ICNTL(16) = icntl_16;
-
-    // Define Ordonning strategy
-    dmumps_par.ICNTL(28) = 1;
-    switch (partition_agent) {
-        case Automatic:
-            dmumps_par.ICNTL(7)  = 7; // Automatic choice of sequential ordering
-            dmumps_par.ICNTL(28) = 0; // Automatic choice between seq or par ordering
-            dmumps_par.ICNTL(29) = 0; // Automatic choice of parallel ordering
-            break;
-        case Metis:
-            dmumps_par.ICNTL(7) = 5;
-            break;
-        case Pord:
-            dmumps_par.ICNTL(7) = 4;
-            break;
-        case Scotch:
-            dmumps_par.ICNTL(7) = 3;
-            break;
-        case PTScotch:
-            dmumps_par.ICNTL(28) = 2;
-            dmumps_par.ICNTL(29) = 1;
-            break;
-    }
-    // Launch MUMPS for Analysis, Factorisation
-    dmumps_par.job = resolve ? 6 : 4;
-    dmumps_c(&dmumps_par);
-    if (dmumps_par.infog[0] != 0) {
-        return EXIT_FAILURE;
-    }
-
-    // Deinitialize MUMPS
-    dmumps_par.job = JOB_END;
-    dmumps_c(&dmumps_par);
-
-    if (rhs != nullptr) {
-        free(rhs);
-    }
 
     return EXIT_SUCCESS;
 }
 
 /**
- * @brief Launch MUMPS on a complex matrix
+ * @brief Fills the zmumps structure for MUMPS internal use
  *
- * @param[in] a                 Complex matrix to factorize
- * @param[in] par               MUMPS PAR parameter controlling the involvement of the
- * root process in factorization
- * @param[in] icntl_13          MUMPS ICNTL(13) parameter controlling the factorization
- * of the root node
- * @param[in] icntl_16          MUMPS ICNTL(16) parameter controlling the number of
- * threads
- * @param[in] resolve           Generate a rhs and do the resolution stage if true only
- * factorize otherwise
- * @param[in] partition_agent   Which ordering library to use (see refer to @ref
- * partition_agent_t)
+ * @param[inout] info Caracteristic of the experiment containing MUMPS struct (see @ref
+ * mumps_t)
  *
- * @return    EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ * @return EXIT_SUCCES on success, EXIT_FAILURE otherwise
  */
-static int experiment_complex (const matrix_t a, const int par, const int icntl_13,
-                               const int icntl_16, const bool resolve) {
+static int _mumps_fill_struct_complex (mumps_t info[static 1]) {
 
-    ZMUMPS_STRUC_C zmumps_par;
+    // Define the system
+    info->mumps_struct.zmumps_par.n   = info->a.n;
+    info->mumps_struct.zmumps_par.nnz = info->a.nnz;
+    info->mumps_struct.zmumps_par.irn = info->a.irn;
+    info->mumps_struct.zmumps_par.jcn = info->a.jcn;
+    info->mumps_struct.zmumps_par.a   = info->a.z_array;
+    info->mumps_struct.zmumps_par.sym = (int) info->a.spec;
 
-    ZMUMPS_COMPLEX *rhs = nullptr;
-    if (resolve == true) {
-        rhs = (typeof(rhs)) malloc(a.n * sizeof(*rhs));
-        generate_rhs(a.n, a.nnz, a.irn, a.z_array, rhs);
+    // Activate logs & metrics only on root rank
+    info->mumps_struct.zmumps_par.ICNTL(2)  = -1;
+    info->mumps_struct.zmumps_par.ICNTL(5)  = 0;
+    info->mumps_struct.zmumps_par.ICNTL(11) = 2;
+    // Memory relaxation
+    info->mumps_struct.zmumps_par.ICNTL(14) = 30;
+    // Sequential ordering as default
+    info->mumps_struct.zmumps_par.ICNTL(28) = 1;
+
+    // Select ordering
+    switch (info->partition_agent) {
+        case Automatic:
+            info->mumps_struct.zmumps_par.ICNTL(7) =
+                7; // Automatic choice of sequential ordering
+            info->mumps_struct.zmumps_par.ICNTL(28) =
+                0; // Automatic choice between seq or par ordering
+            info->mumps_struct.zmumps_par.ICNTL(29) =
+                0; // Automatic choice of parallel ordering
+            break;
+        case Metis:
+            info->mumps_struct.zmumps_par.ICNTL(7) = 5;
+            break;
+        case Pord:
+            info->mumps_struct.zmumps_par.ICNTL(7) = 4;
+            break;
+        case Scotch:
+            info->mumps_struct.zmumps_par.ICNTL(7) = 3;
+            break;
+        case PTScotch:
+            info->mumps_struct.zmumps_par.ICNTL(28) = 2;
+            info->mumps_struct.zmumps_par.ICNTL(29) = 1;
+            break;
+        default:
+            return EXIT_FAILURE;
+            break;
     }
+
+    // This parameter controls the involvement of the root rank in the factorization
+    // and solve phase
+    info->mumps_struct.zmumps_par.par       = info->par;
+    // This parameter controls the parallelism of factorization of the root node
+    info->mumps_struct.zmumps_par.ICNTL(13) = info->icntl_13;
+    // This parameter explicitly request a number of OMP threads
+    info->mumps_struct.zmumps_par.ICNTL(16) = info->icntl_16;
+
+
+    return EXIT_SUCCESS;
+}
+
+/**
+ * @brief Initializes the double variant of the MUMPS solver
+ *
+ * @param[inout] info Caracteristics of the experiment (see @ref mumps_t)
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_init_real (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    ret = _mumps_fill_struct_real(info);
 
     // Initialize MUMPS
-    zmumps_par.comm_fortran = USE_COMM_WORLD;
-    zmumps_par.job          = JOB_INIT;
-    // Activate logs & metrics only on root rank
-    zmumps_par.ICNTL(2)     = -1;
+    info->mumps_struct.dmumps_par.comm_fortran = USE_COMM_WORLD;
+    info->mumps_struct.dmumps_par.job          = JOB_INIT;
 
-    zmumps_par.par       = par;
-    zmumps_par.ICNTL(13) = icntl_13;
-    zmumps_par.ICNTL(16) = icntl_16;
-
-    zmumps_c(&zmumps_par);
-
-    // Define the system
-    zmumps_par.n   = a.n;
-    zmumps_par.nnz = a.nnz;
-    zmumps_par.irn = a.irn;
-    zmumps_par.jcn = a.jcn;
-    zmumps_par.a   = a.z_array;
-    zmumps_par.rhs = rhs;
-    zmumps_par.sym = (int) a.spec;
-
-    // Enables residual computation and printing
-    zmumps_par.ICNTL(11) = 2;
-    zmumps_par.ICNTL(13) = icntl_13;
-    // This parameter controls the memory relaxation of the MUMPS during
-    // factorisation. We need to increase it as some matrix needs large size of
-    // temporary memory
-    zmumps_par.ICNTL(14) = 25;
-    zmumps_par.ICNTL(16) = icntl_16;
-
-    // Launch MUMPS for Analysis, Factorisation and Resolution
-    zmumps_par.job = resolve ? 6 : 4;
-    zmumps_c(&zmumps_par);
-    if (zmumps_par.infog[0] != 0) {
-        return EXIT_FAILURE;
+    if (ret == EXIT_SUCCESS) {
+        dmumps_c(&info->mumps_struct.dmumps_par);
+        if (info->mumps_struct.dmumps_par.infog[0] != 0) {
+            ret = EXIT_FAILURE;
+        }
     }
 
-    // Deinitialize MUMPS
-    zmumps_par.job = JOB_END;
-    zmumps_c(&zmumps_par);
-
-    free(rhs);
-
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 /**
- * @brief Launch MUMPS on a matrix
+ * @brief Initializes the double complex variant of the MUMPS solver
  *
- * This function calls @ref run_experiment_real or @ref run_experiment_complex
- * based on the type of the elements of the matrix
+ * @param[inout] info Caracteristics of the experiment (see @ref mumps_t)
  *
- * @param[in] a                 Matrix to factorize
- * @param[in] par               MUMPS PAR parameter controlling the involvement of the
- * root process in factorization
- * @param[in] icntl_13          MUMPS ICNTL(13) parameter controlling the factorization
- * of the root node
- * @param[in] icntl_16          MUMPS ICNTL(16) parameter controlling the number of
- * threads
- * @param[in] resolve           Generate a rhs and do the resolution stage if true only
- * factorize otherwise
- * @param[in] partition_agent   Which ordering library to use (see refer to @ref
- * partition_agent_t)
- *
- * @return    EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
-int run_experiment (const matrix_t a, const MUMPS_INT par, const int icntl_13,
-                    const int icntl_16, const bool resolve,
-                    const partition_agent_t partition_agent) {
+static int _mumps_init_complex (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
 
-    if (a.type == real) {
-        return experiment_real(a, par, icntl_13, icntl_16, resolve, partition_agent);
+    ret = _mumps_fill_struct_complex(info);
+
+    // Initialize MUMPS
+    info->mumps_struct.zmumps_par.comm_fortran = USE_COMM_WORLD;
+    info->mumps_struct.zmumps_par.job          = JOB_INIT;
+
+    if (ret == EXIT_SUCCESS) {
+        zmumps_c(&info->mumps_struct.zmumps_par);
+        if (info->mumps_struct.zmumps_par.infog[0] != 0) {
+            ret = EXIT_FAILURE;
+        }
     }
-    else {
-        return experiment_complex(a, par, icntl_13, icntl_16, resolve);
+
+    return ret;
+}
+
+/**
+ * @brief Initializes MUMPS internals based on the experiment characteristics
+ *
+ * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ *
+ * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+int mumps_init (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    switch (info->a.type) {
+        case real:
+            ret = _mumps_init_real(info);
+            break;
+        case complex_number:
+            ret = _mumps_init_complex(info);
+            break;
+        default:
+            ret = EXIT_FAILURE;
+            break;
     }
+
+    return ret;
+}
+
+/**
+ * @brief Launches the Analysis stage of MUMPS for real numbers matrix
+ *
+ * @param[inout] info Characteristics of the experiment (see @ref mumps_t)
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_run_ana_real (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    ret                               = _mumps_fill_struct_real(info);
+    info->mumps_struct.dmumps_par.job = JOB_ANA;
+
+    dmumps_c(&info->mumps_struct.dmumps_par);
+    if (info->mumps_struct.dmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Launches the Analysis stage of MUMPS for complex numbers matrix
+ *
+ * @param[inout] info Characteristics of the experiment (see @ref mumps_t)
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_run_ana_complex (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    ret                               = _mumps_fill_struct_complex(info);
+    info->mumps_struct.zmumps_par.job = JOB_ANA;
+
+    zmumps_c(&info->mumps_struct.zmumps_par);
+    if (info->mumps_struct.zmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Runs MUMPS analysis phase based on the experiment characteristics
+ *
+ * The function calls either @ref _mumps_run_ana_real or @ref _mumps_run_ana_complex
+ * based on the type of the elements in the matrix to analyze.
+ *
+ * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ *
+ * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+int mumps_run_ana (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    switch (info->a.type) {
+        case real:
+            ret = _mumps_run_ana_real(info);
+            break;
+        case complex_number:
+            ret = _mumps_run_ana_complex(info);
+            break;
+        default:
+            ret = EXIT_FAILURE;
+            break;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Launches the Factorisation stage of MUMPS for real numbers matrix
+ *
+ * @param[inout] info Characteristics of the experiment (see @ref mumps_t)
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_run_facto_real (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    info->mumps_struct.dmumps_par.job = JOB_FACTO;
+
+    dmumps_c(&info->mumps_struct.dmumps_par);
+    if (info->mumps_struct.dmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Launches the Factorisation stage of MUMPS for complex numbers matrix
+ *
+ * @param[inout] info Characteristics of the experiment (see @ref mumps_t)
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_run_facto_complex (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    info->mumps_struct.zmumps_par.job = JOB_FACTO;
+
+    zmumps_c(&info->mumps_struct.zmumps_par);
+    if (info->mumps_struct.zmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Runs MUMPS factorisation phase based on the experiment characteristics
+ *
+ * The function calls either @ref _mumps_run_facto_real or @ref _mumps_run_facto_complex
+ * based on the type of the elements in the matrix to factorize.
+ *
+ * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ *
+ * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+int mumps_run_facto (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    switch (info->a.type) {
+        case real:
+            ret = _mumps_run_facto_real(info);
+            break;
+        case complex_number:
+            ret = _mumps_run_facto_complex(info);
+            break;
+        default:
+            ret = EXIT_FAILURE;
+            break;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Launches the Resolution stage of MUMPS for real numbers matrix
+ *
+ * @param[inout] info Characteristics of the experiment (see @ref mumps_t)
+ *
+ * @warning A rhs must be provided in @p info for this stage to complete
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_run_res_real (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    const DMUMPS_REAL *rhs = (typeof(rhs)) malloc(info->a.n * sizeof(*rhs));
+
+    info->mumps_struct.dmumps_par.job = JOB_RES;
+
+    dmumps_c(&info->mumps_struct.dmumps_par);
+    if (info->mumps_struct.dmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    free((void *) rhs);
+
+    return ret;
+}
+
+/**
+ * @brief Launches the Resolution stage of MUMPS for complex numbers matrix
+ *
+ * @param[inout] info Characteristics of the experiment (see @ref mumps_t)
+ *
+ * @warning A rhs must be provided in @p info for this stage to complete
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_run_res_complex (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    info->mumps_struct.zmumps_par.job = JOB_RES;
+
+    zmumps_c(&info->mumps_struct.zmumps_par);
+    if (info->mumps_struct.zmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Runs MUMPS resolution phase based on the experiment characteristics
+ *
+ * The function calls either @ref _mumps_run_res_real or @ref _mumps_run_res_complex
+ * based on the type of the elements in the system to resolve.
+ *
+ * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ *
+ * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+int mumps_run_res (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    switch (info->a.type) {
+        case real:
+            ret = _mumps_run_res_real(info);
+            break;
+        case complex_number:
+            ret = _mumps_run_res_complex(info);
+            break;
+        default:
+            ret = EXIT_FAILURE;
+            break;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Frees the internals of a double precision real MUMPS instance
+ *
+ * @param[inout] info Characteristics of the experiment (see @ref mumps_t)
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_finalize_real (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    // Deinitialize MUMPS
+    info->mumps_struct.dmumps_par.job = JOB_END;
+    dmumps_c(&info->mumps_struct.dmumps_par);
+    if (info->mumps_struct.dmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Frees the internals of a double precision complex MUMPS instance
+ *
+ * @param[inout] info Characteristics of the experiment (see @ref mumps_t)
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_finalize_complex (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    // Deinitialize MUMPS
+    info->mumps_struct.zmumps_par.job = JOB_END;
+    zmumps_c(&info->mumps_struct.zmumps_par);
+    if (info->mumps_struct.zmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Frees MUMPS internals based on the experiment characteristics
+ *
+ * The function calls either @ref _mumps_finalize_real or @ref _mumps_finalize_complex
+ * based on the type of the elements in the system.
+ *
+ * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ *
+ * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+int mumps_finalize (mumps_t info[static 1]) {
+    int ret = EXIT_SUCCESS;
+
+    switch (info->a.type) {
+        case real:
+            ret = _mumps_finalize_real(info);
+            break;
+        case complex_number:
+            ret = _mumps_finalize_complex(info);
+            break;
+        default:
+            ret = EXIT_FAILURE;
+            break;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Saves the internals of a double precision real MUMPS instance
+ *
+ * @param[in] info     Characteristics of the experiment (see @ref mumps_t)
+ * @param[in] nb_char  Length of @p exp_name
+ * @param[in] exp_name Name of the experiment. Used to name saved files.
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_save_real (mumps_t info[static 1], const size_t nb_char,
+                             const char exp_name[static nb_char]) {
+    int ret = EXIT_SUCCESS;
+
+    strncpy(info->mumps_struct.dmumps_par.save_dir, exp_name, nb_char);
+    info->mumps_struct.dmumps_par.job = 7;
+
+    dmumps_c(&info->mumps_struct.dmumps_par);
+    if (info->mumps_struct.dmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Saves the internals of a double precision complex MUMPS instance
+ *
+ * @param[in] info     Characteristics of the experiment (see @ref mumps_t)
+ * @param[in] nb_char  Length of @p exp_name
+ * @param[in] exp_name Name of the experiment. Used to name saved files.
+ *
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_save_complex (mumps_t info[static 1], const size_t nb_char,
+                                const char exp_name[static nb_char]) {
+    int ret = EXIT_SUCCESS;
+
+    strncpy(info->mumps_struct.zmumps_par.save_dir, exp_name, nb_char);
+    info->mumps_struct.zmumps_par.job = 7;
+
+    zmumps_c(&info->mumps_struct.zmumps_par);
+    if (info->mumps_struct.zmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Saves the current MUMPS internals for latter restore
+ *
+ * The function calls either @ref _mumps_save_real or @ref _mumps_save_complex
+ * based on the type of the elements in the system.
+ *
+ * @param[in] info     Caracteristics of the experiment (see @ref mumps_t)
+ * @param[in] nb_char  Size of @p exp_name
+ * @param[in] exp_name Unique name of the experiment. Used to name the files.
+ *
+ * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+int mumps_save (mumps_t info[static 1], const size_t nb_char,
+                const char exp_name[static nb_char]) {
+    int ret = EXIT_SUCCESS;
+
+    switch (info->a.type) {
+        case real:
+            _mumps_save_real(info, nb_char, exp_name);
+            break;
+        case complex_number:
+            _mumps_save_complex(info, nb_char, exp_name);
+            break;
+        default:
+            ret = EXIT_FAILURE;
+            break;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Restores a saved double precision real MUMPS instance from a prior save
+ *
+ * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ * @param[in] nb_char  Size of @p exp_name
+ * @param[in] exp_name Unique name of the experiment. Used to name the files.
+ *
+ * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_restore_real (mumps_t info[static 1], const size_t nb_char,
+                                const char exp_name[static nb_char]) {
+    int ret = EXIT_SUCCESS;
+
+    strncpy(info->mumps_struct.dmumps_par.save_dir, exp_name, nb_char);
+    info->mumps_struct.dmumps_par.job = 8;
+
+    dmumps_c(&info->mumps_struct.dmumps_par);
+    if (info->mumps_struct.dmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Restores a saved double precision complex MUMPS instance from a prior save
+ *
+ * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ * @param[in] nb_char  Size of @p exp_name
+ * @param[in] exp_name Unique name of the experiment. Used to name the files.
+ *
+ * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+static int _mumps_restore_complex (mumps_t info[static 1], const size_t nb_char,
+                                   const char exp_name[static nb_char]) {
+    int ret = EXIT_SUCCESS;
+
+    strncpy(info->mumps_struct.zmumps_par.save_dir, exp_name, nb_char);
+    info->mumps_struct.zmumps_par.job = 8;
+
+    zmumps_c(&info->mumps_struct.zmumps_par);
+    if (info->mumps_struct.zmumps_par.infog[0] != 0) {
+        ret = EXIT_FAILURE;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief Restores a saved MUMPS state from a prior save
+ *
+ * The function calls either @ref _mumps_restore_real or @ref _mumps_restore_complex
+ * based on the type of the elements in the system.
+ *
+ * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ * @param[in] nb_char  Size of @p exp_name
+ * @param[in] exp_name Unique name of the experiment. Used to name the files.
+ *
+ * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
+ */
+int mumps_restore (mumps_t info[static 1], const size_t nb_char,
+                   const char exp_name[static nb_char]) {
+    int ret = EXIT_SUCCESS;
+
+    switch (info->a.type) {
+        case real:
+            _mumps_restore_real(info, nb_char, exp_name);
+            break;
+        case complex_number:
+            _mumps_restore_complex(info, nb_char, exp_name);
+            break;
+        default:
+            ret = EXIT_FAILURE;
+            break;
+    }
+
+    return ret;
 }

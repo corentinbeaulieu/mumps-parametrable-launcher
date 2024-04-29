@@ -1,6 +1,6 @@
-project('MUMPS Parametrable Launch',
+project('MUMPS Parametrable Launcher',
   'c',
-  version: '0.0.1',
+  version: '0.0.2',
   default_options: [
     'prefix=' + meson.project_source_root(),
     'buildtype=debugoptimized',
