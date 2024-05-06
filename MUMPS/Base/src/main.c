@@ -15,6 +15,7 @@
  */
 #define _GNU_SOURCE
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <mpi.h>
@@ -26,7 +27,7 @@
 int main (int argc, char *argv[]) {
 
     matrix_t a;
-    int      ierr, rank;
+    int      ierr, rank, size;
 
     // Initialize MPI
     ierr = MPI_Init(&argc, &argv);
@@ -35,6 +36,11 @@ int main (int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     ierr = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (ierr != MPI_SUCCESS) {
+        perror("ERROR");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+    ierr = MPI_Comm_size(MPI_COMM_WORLD, &size);
     if (ierr != MPI_SUCCESS) {
         perror("ERROR");
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
@@ -89,6 +95,7 @@ int main (int argc, char *argv[]) {
         facto    = true;
     }
 
+    char name[256] = { 0 };
 
     if (readfile == true) {
 
@@ -228,7 +235,10 @@ int main (int argc, char *argv[]) {
 
             conversion_CSC_to_COO(a.nnz, a.n, ptr, a.jcn);
             free(ptr);
+
         }
+        snprintf(name, 128, "exp-%d-%lf-%lf-%d", a.n, bandwidth_ratio, density,
+                a.spec);
     }
 
     mumps_t info = {
@@ -240,27 +250,35 @@ int main (int argc, char *argv[]) {
         .partition_agent = (int) atoi(argv[optind + 3]),
     };
 
-
-    mumps_init(&info);
-    if (analysis == true) {
-        mumps_run_ana(&info);
+    {
+        char buf[128] = {0};
+        snprintf(buf, 128, "_%dx%d-%d-%d-%d", size, info.icntl_16,
+                 info.par, info.icntl_16, info.partition_agent);
+        strncat(name, buf, 128);
     }
-    else if (mumps_restore(&info) != EXIT_SUCCESS) {
-        mumps_run_ana(&info);
+
+    if(mumps_init(&info) != EXIT_SUCCESS) goto cleanup;
+    if (analysis == true) {
+        if(mumps_run_ana(&info) != EXIT_SUCCESS) goto cleanup_full;
+    }
+    else if ((readfile == false) && (mumps_restore(&info, 256, name) != EXIT_SUCCESS)) {
+        if(mumps_run_ana(&info) != EXIT_SUCCESS) goto cleanup_full;
     }
 
     if (facto == true) {
-        mumps_run_facto(&info);
+        if(mumps_run_facto(&info) != EXIT_SUCCESS) goto cleanup_full;
     }
-    else {
-        mumps_save(&info);
+    else if (readfile == false) {
+        mumps_save(&info, 256, name);
     }
 
     if (resolve == true) {
         mumps_run_res(&info);
     }
+cleanup_full:
     mumps_finalize(&info);
 
+cleanup:
     ierr = MPI_Finalize();
     if (ierr != MPI_SUCCESS) {
         perror("ERROR");
