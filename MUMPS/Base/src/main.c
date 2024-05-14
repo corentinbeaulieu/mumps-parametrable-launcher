@@ -141,7 +141,7 @@ int main (int argc, char *argv[]) {
                 break;
         }
 
-        char *prev, *curr;
+        char *prev = nullptr, *curr = nullptr;
         curr = strtok(argv[optind], "/");
         while (curr != NULL) {
             prev = curr;
@@ -220,6 +220,10 @@ int main (int argc, char *argv[]) {
 
             a.irn = (typeof(a.irn)) malloc(a.nnz * sizeof(*a.irn));
             a.jcn = (typeof(a.jcn)) malloc(a.nnz * sizeof(*a.jcn));
+            if ((ptr == NULL) || (a.irn == NULL) || (a.jcn == NULL)) {
+                perror("ERROR");
+                return MallocError;
+            }
 
             if (a.type == real) {
                 a.d_array = (typeof(a.d_array)) malloc(a.nnz * sizeof(*a.d_array));
