@@ -4,6 +4,16 @@ option('metis-path',
   value: '/usr',
   description: 'Path to METIS install directory'
 )
+option('scotch',
+  type: 'boolean',
+  value: false,
+  description: 'Build with SCOTCH as a dependency'
+)
+option('scotch-path',
+  type: 'string',
+  value: '/usr',
+  description: 'Path to SCOTCH install directory'
+)
 option('spral-path',
   type: 'string',
   value: '/usr',
@@ -14,6 +24,11 @@ option('mumps-path',
   value: '/usr',
   description: 'Path to MUMPS install directory'
 )
+option('ear-path',
+  type: 'string',
+  value: '/usr',
+  description: 'Path to EAR install directory ($EAR_INSTALL_DIR)'
+)
 option('doc',
   type: 'boolean',
   value: false,
@@ -23,14 +38,4 @@ option('mkl',
   type: 'boolean',
   value: false,
   description: 'Build with MKL as a dependency'
-)
-option('scotch',
-  type: 'boolean',
-  value: false,
-  description: 'Build with SCOTCH as a dependency'
-)
-option('scotch-path',
-  type: 'string',
-  value: '/usr',
-  description: 'Path to SCOTCH install directory'
 )

@@ -22,6 +22,10 @@
 #include <mpi.h>
 #include <omp.h>
 
+#ifdef USE_EAR
+#include <ear.h>
+#endif
+
 #include "mumps_calls.h"
 
 
@@ -273,10 +277,45 @@ int main (int argc, char *argv[]) {
     }
 
     if(mumps_init(&info) != EXIT_SUCCESS) goto cleanup;
-    if (analysis == true) {
-        if(mumps_run_ana(&info) != EXIT_SUCCESS) goto cleanup_full;
+
+#ifdef USE_EAR
+    // EAR energy measurement setup
+    bool ear_ok = true;
+    unsigned long e_mj = 0, e_mj_start = 0, e_mj_end = 0;
+    unsigned long t_ms = 0, t_ms_start = 0, t_ms_end = 0;
+
+    if (ear_connect() != EAR_SUCCESS) {
+        ear_ok = false;
     }
-    else if ((readfile == false) && (mumps_restore(&info, 256, name) != EXIT_SUCCESS)) {
+    if ((ear_ok == true) && (ear_energy(&e_mj_start, &t_ms_start) != EAR_SUCCESS)) {
+        ear_ok = false;
+    }
+#endif
+
+    if ((analysis == true) || (readfile == true)) {
+        if(mumps_run_ana(&info) != EXIT_SUCCESS) goto cleanup_full;
+
+#ifdef USE_EAR
+        if ((ear_ok == true) && (ear_energy(&e_mj_end, &t_ms_end) != EAR_SUCCESS)) {
+            ear_ok = false;
+        }
+
+        if (ear_ok == true) {
+            ear_energy_diff(e_mj_start, e_mj_end, &e_mj, t_ms_start, t_ms_end, &t_ms);
+            if (rank == 0) {
+                printf("ANALYSIS EAR ENERGY = %16lu mJ, TIME = %16lu ms, POWER = %16.6lf W\n",
+                        e_mj,
+                        t_ms,
+                        (double) e_mj / (double) t_ms);
+            }
+        }
+        if ((ear_ok == true) && (ear_energy(&e_mj_start, &t_ms_start) != EAR_SUCCESS)) {
+            ear_ok = false;
+        }
+#endif
+
+    }
+    else if (mumps_restore(&info, 256, name) != EXIT_SUCCESS) {
         if(mumps_run_ana(&info) != EXIT_SUCCESS) goto cleanup_full;
     }
 
@@ -284,13 +323,50 @@ int main (int argc, char *argv[]) {
 
     if (facto == true) {
         if(mumps_run_facto(&info) != EXIT_SUCCESS) goto cleanup_full;
-    }
-    else if (readfile == false) {
-        mumps_save(&info, 256, name);
+
+#ifdef USE_EAR
+        if ((ear_ok == true) && (ear_energy(&e_mj_end, &t_ms_end) != EAR_SUCCESS)) {
+            ear_ok = false;
+        }
+
+        if (ear_ok == true) {
+            ear_energy_diff(e_mj_start, e_mj_end, &e_mj, t_ms_start, t_ms_end, &t_ms);
+            if (rank == 0) {
+                printf("FACTORIZATION EAR ENERGY = %16lu mJ, TIME = %16lu ms, POWER = %16.6lf W\n",
+                        e_mj,
+                        t_ms,
+                        (double) e_mj / (double) t_ms);
+            }
+        }
+        if ((ear_ok == true) && (ear_energy(&e_mj_start, &t_ms_start) != EAR_SUCCESS)) {
+            ear_ok = false;
+        }
+#endif
+
     }
 
     if (resolve == true) {
         mumps_run_res(&info);
+
+#ifdef USE_EAR
+        if ((ear_ok == true) && (ear_energy(&e_mj_end, &t_ms_end) != EAR_SUCCESS)) {
+            ear_ok = false;
+        }
+
+        if (ear_ok == true) {
+            ear_energy_diff(e_mj_start, e_mj_end, &e_mj, t_ms_start, t_ms_end, &t_ms);
+            if (rank == 0) {
+                printf("RESOLVE EAR ENERGY = %16lu mJ, TIME = %16lu ms, POWER = %16.6lf W\n",
+                        e_mj,
+                        t_ms,
+                        (double) e_mj / (double) t_ms);
+            }
+        }
+        if ((ear_ok == true) && (ear_energy(&e_mj_start, &t_ms_start) != EAR_SUCCESS)) {
+            ear_ok = false;
+        }
+#endif
+
     }
 cleanup_full:
     mumps_finalize(&info);

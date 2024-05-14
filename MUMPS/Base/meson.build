@@ -5,9 +5,11 @@ project('MUMPS Parametrable Launcher',
     'prefix=' + meson.project_source_root(),
     'buildtype=debugoptimized',
     'warning_level=3',
-    'c_std=c2x'
   ]
 )
+
+deprecated_c2x = '-std=c2x'
+preferred_c23 = '-std=c23'
 
 cc = meson.get_compiler('c')
 prefix = get_option('prefix')
@@ -15,14 +17,31 @@ prefix = get_option('prefix')
 if cc.get_id() == 'intel' or cc.get_id() == 'intel-llvm'
   add_global_arguments('-qopenmp', language: 'c')
   add_global_link_arguments('-qopenmp', language: 'c')
+  if cc.version().split('.')[0].to_int() >= 2024
+    add_global_arguments(preferred_c23, language: 'c')
+  else
+    add_global_arguments(deprecated_c2x, language: 'c')
+  endif
 else
   add_global_arguments('-fopenmp', language: 'c')
+  add_global_arguments('-fanalyzer', language: 'c')
   add_global_link_arguments('-fopenmp', language: 'c')
+  if cc.get_id() == 'clang'
+    if cc.version().split('.')[0].to_int() >= 18
+      add_global_arguments(preferred_c23, language: 'c')
+    else
+      add_global_arguments(deprecated_c2x, language: 'c')
+    endif
+  endif
+  if cc.get_id() == 'gcc'
+    if cc.version().split('.')[0].to_int() >= 14
+      add_global_arguments(preferred_c23, language: 'c')
+    else
+      add_global_arguments(deprecated_c2x, language: 'c')
+    endif
+  endif
 endif
 
-add_global_arguments('-fanalyzer', language: 'c')
-
-mpi = dependency('mpi', required: false)
 
 metispath = get_option('metis-path') 
 spralpath = get_option('spral-path')
@@ -62,14 +81,18 @@ mumpsdeps = declare_dependency(
   include_directories: incmumps
 )
 
+# Define mandatory dependencies
 deps = [metis, spral, mumpsdeps]
 
+
+mpi = dependency('mpi', required: false)
 # HACKY: intel-mpi isn't found on Ruche. 
 # The workaround is to set the env variable CC=mpiicx to compile with mpi enabled
 if mpi.found()
   deps += mpi
 endif
 
+# Link with SCOTCH library if requested
 if get_option('scotch')
   scotchpath = get_option('scotch-path')
   libscotch = scotchpath / 'lib'
@@ -87,6 +110,7 @@ if get_option('scotch')
   deps += scotch
 endif
 
+# Link with mkl if requested
 if get_option('mkl')
   mkl = [
        cc.find_library('mkl_intel_lp64'),
@@ -96,6 +120,20 @@ if get_option('mkl')
   deps += mkl
 endif
 
+# Check if EAR is disponible to have energy measurements
+ear_install_path = get_option('ear-path')
+earlib = cc.find_library('ear_api', dirs: ear_install_path / 'lib', required: false)
+if earlib.found()
+  ear = declare_dependency(
+    dependencies: earlib,
+    include_directories: ear_install_path / 'include',
+    )
+  deps += ear
+  add_global_arguments('-DUSE_EAR', language: 'c')
+endif
+
+
+# Define subdirectories and build targets
 src = []
 inc = include_directories('include', 'src')
 
@@ -108,12 +146,13 @@ executable('mumps',
   install: true
 )
 
+# Add the launching scripts to the install directory
 install_data(meson.project_source_root() / 'run_mumps.sh', 
   install_dir: prefix / 'bin',
   install_mode: 'r-xr-xr-x'
 )
 
-### Documentation Generation ###
+# Documentation generation
 docgen = get_option('doc')
 
 if docgen
