@@ -160,7 +160,7 @@ static int _mumps_init_real (mumps_t info[static 1]) {
     if (ret == EXIT_SUCCESS) {
         dmumps_c(&info->mumps_struct.dmumps_par);
         if (info->mumps_struct.dmumps_par.infog[0] != 0) {
-            ret = EXIT_FAILURE;
+            ret = info->mumps_struct.dmumps_par.infog[0];
         }
     }
 
@@ -186,7 +186,7 @@ static int _mumps_init_complex (mumps_t info[static 1]) {
     if (ret == EXIT_SUCCESS) {
         zmumps_c(&info->mumps_struct.zmumps_par);
         if (info->mumps_struct.zmumps_par.infog[0] != 0) {
-            ret = EXIT_FAILURE;
+            ret = info->mumps_struct.zmumps_par.infog[0];
         }
     }
 
@@ -233,7 +233,7 @@ static int _mumps_run_ana_real (mumps_t info[static 1]) {
 
     dmumps_c(&info->mumps_struct.dmumps_par);
     if (info->mumps_struct.dmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.dmumps_par.infog[0];
     }
 
     return ret;
@@ -254,7 +254,7 @@ static int _mumps_run_ana_complex (mumps_t info[static 1]) {
 
     zmumps_c(&info->mumps_struct.zmumps_par);
     if (info->mumps_struct.zmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.zmumps_par.infog[0];
     }
 
     return ret;
@@ -302,7 +302,7 @@ static int _mumps_run_facto_real (mumps_t info[static 1]) {
 
     dmumps_c(&info->mumps_struct.dmumps_par);
     if (info->mumps_struct.dmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.dmumps_par.infog[0];
     }
 
     return ret;
@@ -322,7 +322,7 @@ static int _mumps_run_facto_complex (mumps_t info[static 1]) {
 
     zmumps_c(&info->mumps_struct.zmumps_par);
     if (info->mumps_struct.zmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.zmumps_par.infog[0];
     }
 
     return ret;
@@ -374,7 +374,7 @@ static int _mumps_run_res_real (mumps_t info[static 1]) {
 
     dmumps_c(&info->mumps_struct.dmumps_par);
     if (info->mumps_struct.dmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.dmumps_par.infog[0];
     }
 
     free((void *) rhs);
@@ -398,7 +398,7 @@ static int _mumps_run_res_complex (mumps_t info[static 1]) {
 
     zmumps_c(&info->mumps_struct.zmumps_par);
     if (info->mumps_struct.zmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.zmumps_par.infog[0];
     }
 
     return ret;
@@ -446,7 +446,7 @@ static int _mumps_finalize_real (mumps_t info[static 1]) {
     info->mumps_struct.dmumps_par.job = JOB_END;
     dmumps_c(&info->mumps_struct.dmumps_par);
     if (info->mumps_struct.dmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.dmumps_par.infog[0];
     }
 
     return ret;
@@ -466,7 +466,7 @@ static int _mumps_finalize_complex (mumps_t info[static 1]) {
     info->mumps_struct.zmumps_par.job = JOB_END;
     zmumps_c(&info->mumps_struct.zmumps_par);
     if (info->mumps_struct.zmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.zmumps_par.infog[0];
     }
 
     return ret;
@@ -503,9 +503,9 @@ int mumps_finalize (mumps_t info[static 1]) {
 /**
  * @brief Saves the internals of a double precision real MUMPS instance
  *
- * @param[in] info     Characteristics of the experiment (see @ref mumps_t)
- * @param[in] nb_char  Length of @p exp_name
- * @param[in] exp_name Name of the experiment. Used to name saved files.
+ * @param[inout] info     Characteristics of the experiment (see @ref mumps_t)
+ * @param[in]    nb_char  Length of @p exp_name
+ * @param[in]    exp_name Name of the experiment. Used to name saved files.
  *
  * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
@@ -531,7 +531,7 @@ static int _mumps_save_real (mumps_t info[static 1], const size_t nb_char,
 
     dmumps_c(&info->mumps_struct.dmumps_par);
     if (info->mumps_struct.dmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.dmumps_par.infog[0];
     }
 
     return ret;
@@ -540,9 +540,9 @@ static int _mumps_save_real (mumps_t info[static 1], const size_t nb_char,
 /**
  * @brief Saves the internals of a double precision complex MUMPS instance
  *
- * @param[in] info     Characteristics of the experiment (see @ref mumps_t)
- * @param[in] nb_char  Length of @p exp_name
- * @param[in] exp_name Name of the experiment. Used to name saved files.
+ * @param[inout] info  Characteristics of the experiment (see @ref mumps_t)
+ * @param[in]    nb_char  Length of @p exp_name
+ * @param[in]    exp_name Name of the experiment. Used to name saved files.
  *
  * @return EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
@@ -568,7 +568,7 @@ static int _mumps_save_complex (mumps_t info[static 1], const size_t nb_char,
 
     zmumps_c(&info->mumps_struct.zmumps_par);
     if (info->mumps_struct.zmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.zmumps_par.infog[0];
     }
 
     return ret;
@@ -580,21 +580,21 @@ static int _mumps_save_complex (mumps_t info[static 1], const size_t nb_char,
  * The function calls either @ref _mumps_save_real or @ref _mumps_save_complex
  * based on the type of the elements in the system.
  *
- * @param[in] info     Caracteristics of the experiment (see @ref mumps_t)
- * @param[in] nb_char  Size of @p exp_name
- * @param[in] exp_name Unique name of the experiment. Used to name the files.
+ * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ * @param[in]    nb_char  Size of @p exp_name
+ * @param[in]    exp_name Unique name of the experiment. Used to name the files.
  *
  * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
-int mumps_save (mumps_t info[static 1], const size_t nb_char, const char name[restrict static nb_char]) {
+int mumps_save (mumps_t info[static 1], const size_t nb_char, const char exp_name[restrict static nb_char]) {
     int ret = EXIT_SUCCESS;
 
     switch (info->a.type) {
         case real:
-            ret = _mumps_save_real(info, 256, name);
+            ret = _mumps_save_real(info, 256, exp_name);
             break;
         case complex_number:
-            ret = _mumps_save_complex(info, 256, name);
+            ret = _mumps_save_complex(info, 256, exp_name);
             break;
         default:
             ret = EXIT_FAILURE;
@@ -607,9 +607,9 @@ int mumps_save (mumps_t info[static 1], const size_t nb_char, const char name[re
 /**
  * @brief Restores a saved double precision real MUMPS instance from a prior save
  *
- * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
- * @param[in] nb_char  Size of @p exp_name
- * @param[in] exp_name Unique name of the experiment. Used to name the files.
+ * @param[inout] info     Caracteristics of the experiment (see @ref mumps_t)
+ * @param[in]    nb_char  Size of @p exp_name
+ * @param[in]    exp_name Unique name of the experiment. Used to name the files.
  *
  * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
@@ -635,7 +635,7 @@ static int _mumps_restore_real (mumps_t info[static 1], const size_t nb_char,
 
     dmumps_c(&info->mumps_struct.dmumps_par);
     if (info->mumps_struct.dmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.dmumps_par.infog[0];
     }
 
     return ret;
@@ -645,8 +645,8 @@ static int _mumps_restore_real (mumps_t info[static 1], const size_t nb_char,
  * @brief Restores a saved double precision complex MUMPS instance from a prior save
  *
  * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
- * @param[in] nb_char  Size of @p exp_name
- * @param[in] exp_name Unique name of the experiment. Used to name the files.
+ * @param[in]    nb_char  Size of @p exp_name
+ * @param[in]    exp_name Unique name of the experiment. Used to name the files.
  *
  * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
@@ -672,7 +672,7 @@ static int _mumps_restore_complex (mumps_t info[static 1], const size_t nb_char,
 
     zmumps_c(&info->mumps_struct.zmumps_par);
     if (info->mumps_struct.zmumps_par.infog[0] != 0) {
-        ret = EXIT_FAILURE;
+        ret = info->mumps_struct.zmumps_par.infog[0];
     }
 
     return ret;
@@ -685,10 +685,12 @@ static int _mumps_restore_complex (mumps_t info[static 1], const size_t nb_char,
  * based on the type of the elements in the system.
  *
  * @param[inout] info  Caracteristics of the experiment (see @ref mumps_t)
+ * @param[in]    nb_char  Length of @p exp_name
+ * @param[in]    exp_name Name of the experiment. Used to name saved files.
  *
  * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
-int mumps_restore (mumps_t info[static 1], const size_t nb_char, const char name[restrict static nb_char]) {
+int mumps_restore (mumps_t info[static 1], const size_t nb_char, const char exp_name[restrict static nb_char]) {
     int ret = EXIT_SUCCESS;
 
     switch (info->a.type) {
@@ -697,14 +699,14 @@ int mumps_restore (mumps_t info[static 1], const size_t nb_char, const char name
             if (ret != EXIT_SUCCESS) {
                 break;
             }
-            ret = _mumps_restore_real(info, 256, name);
+            ret = _mumps_restore_real(info, 256, exp_name);
             break;
         case complex_number:
             ret = _mumps_fill_struct_complex(info);
             if (ret != EXIT_SUCCESS) {
                 break;
             }
-            ret = _mumps_restore_complex(info, 256, name);
+            ret = _mumps_restore_complex(info, 256, exp_name);
             break;
         default:
             ret = EXIT_FAILURE;

@@ -14,6 +14,7 @@
  *  - call mumps to factorize it
  */
 #define _GNU_SOURCE
+#include <err.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -125,6 +126,9 @@ int main (int argc, char *argv[]) {
                 return perr;
 
             case FileError:
+                err(perr, "ERROR: %s", argv[optind]);
+                return perr;
+
             case MallocError:
                 perror("ERROR");
                 return perr;
@@ -132,6 +136,17 @@ int main (int argc, char *argv[]) {
             case Success:
                 break;
         }
+
+        char *prev, *curr;
+        curr = strtok(argv[optind], "/");
+        while (curr != NULL) {
+            prev = curr;
+            curr = strtok(NULL, "/");
+        }
+        snprintf(name, 128, "exp-%s", strtok(prev, "."));
+
+        fprintf(stderr, "[LOG] %s\n", name);
+
         optind++;
     }
     else {
@@ -252,7 +267,7 @@ int main (int argc, char *argv[]) {
 
     {
         char buf[128] = {0};
-        snprintf(buf, 128, "_%dx%d-%d-%d-%d", size, info.icntl_16,
+        snprintf(buf, 128, "_%dx%d-%d-%d-%d", size, info.icntl_13,
                  info.par, info.icntl_16, info.partition_agent);
         strncat(name, buf, 128);
     }
@@ -264,6 +279,8 @@ int main (int argc, char *argv[]) {
     else if ((readfile == false) && (mumps_restore(&info, 256, name) != EXIT_SUCCESS)) {
         if(mumps_run_ana(&info) != EXIT_SUCCESS) goto cleanup_full;
     }
+
+    mumps_save(&info, 256, name);
 
     if (facto == true) {
         if(mumps_run_facto(&info) != EXIT_SUCCESS) goto cleanup_full;
