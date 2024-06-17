@@ -517,7 +517,7 @@ static int _mumps_save_real (mumps_t info[static 1], const size_t nb_char,
 
     if (workdir != NULL) {
 
-        char dirname[256] = {0};
+        char dirname[256] = { 0 };
         strncat(dirname, workdir, 239);
         strncat(dirname, "/Saved_analysis", 16);
 
@@ -554,7 +554,7 @@ static int _mumps_save_complex (mumps_t info[static 1], const size_t nb_char,
 
     if (workdir != NULL) {
 
-        char dirname[256] = {0};
+        char dirname[256] = { 0 };
         strncat(dirname, workdir, 239);
         strncat(dirname, "/Saved_analysis", 16);
 
@@ -586,7 +586,8 @@ static int _mumps_save_complex (mumps_t info[static 1], const size_t nb_char,
  *
  * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
-int mumps_save (mumps_t info[static 1], const size_t nb_char, const char exp_name[restrict static nb_char]) {
+int mumps_save (mumps_t info[static 1], const size_t nb_char,
+                const char exp_name[restrict static nb_char]) {
     int ret = EXIT_SUCCESS;
 
     switch (info->a.type) {
@@ -621,7 +622,7 @@ static int _mumps_restore_real (mumps_t info[static 1], const size_t nb_char,
 
     if (workdir != NULL) {
 
-        char dirname[256] = {0};
+        char dirname[256] = { 0 };
         strncat(dirname, workdir, 239);
         strncat(dirname, "/Saved_analysis", 16);
 
@@ -658,7 +659,7 @@ static int _mumps_restore_complex (mumps_t info[static 1], const size_t nb_char,
 
     if (workdir != NULL) {
 
-        char dirname[256] = {0};
+        char dirname[256] = { 0 };
         strncat(dirname, workdir, 239);
         strncat(dirname, "/Saved_analysis", 16);
 
@@ -690,7 +691,8 @@ static int _mumps_restore_complex (mumps_t info[static 1], const size_t nb_char,
  *
  * @return      EXIT_SUCCESS on success, EXIT_FAILURE otherwise
  */
-int mumps_restore (mumps_t info[static 1], const size_t nb_char, const char exp_name[restrict static nb_char]) {
+int mumps_restore (mumps_t info[static 1], const size_t nb_char,
+                   const char exp_name[restrict static nb_char]) {
     int ret = EXIT_SUCCESS;
 
     switch (info->a.type) {

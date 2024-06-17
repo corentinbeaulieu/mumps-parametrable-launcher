@@ -55,9 +55,11 @@ int mumps_run_res (mumps_t info[static 1]);
 
 int mumps_finalize (mumps_t info[static 1]);
 
-int mumps_save (mumps_t info[static 1], const size_t nb_char, const char name[restrict static nb_char]);
+int mumps_save (mumps_t info[static 1], const size_t nb_char,
+                const char name[restrict static nb_char]);
 
-int mumps_restore (mumps_t info[static 1], const size_t nb_char, const char name[restrict static nb_char]);
+int mumps_restore (mumps_t info[static 1], const size_t nb_char,
+                   const char name[restrict static nb_char]);
 
 // The following is at the end to disable some weird doxygen behaviour
 /** @def USE_COMM_WORLD

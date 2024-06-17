@@ -1,11 +1,12 @@
-project('MUMPS Parametrable Launcher',
+project(
+  'MUMPS Parametrable Launcher',
   'c',
   version: '0.0.2',
   default_options: [
     'prefix=' + meson.project_source_root(),
     'buildtype=debugoptimized',
     'warning_level=3',
-  ]
+  ],
 )
 
 deprecated_c2x = '-std=c2x'
@@ -42,8 +43,7 @@ else
   endif
 endif
 
-
-metispath = get_option('metis-path') 
+metispath = get_option('metis-path')
 spralpath = get_option('spral-path')
 mumpspath = get_option('mumps-path')
 
@@ -57,36 +57,32 @@ incmumps = include_directories(mumpspath / 'include')
 
 metis = declare_dependency(
   dependencies: cc.find_library('metis', dirs: libmetis, required: true),
-  include_directories: incmetis
+  include_directories: incmetis,
 )
 
 # Check if spral is modified to generate band matrix
 cc.has_header_symbol(
   'spral.h',
   'spral_random_matrix_generate_band_long',
-  include_directories:  incspral,
+  include_directories: incspral,
   required: true,
 )
 
 spral = declare_dependency(
   dependencies: cc.find_library('spral', dirs: libspral, required: true),
-  include_directories: incspral 
+  include_directories: incspral,
 )
 
 dmumps_lib = cc.find_library('dmumps', dirs: libmumps, required: true)
 zmumps_lib = cc.find_library('zmumps', dirs: libmumps, required: true)
 
-mumpsdeps = declare_dependency(
-  dependencies: [dmumps_lib, zmumps_lib],
-  include_directories: incmumps
-)
+mumpsdeps = declare_dependency(dependencies: [dmumps_lib, zmumps_lib], include_directories: incmumps)
 
 # Define mandatory dependencies
 deps = [metis, spral, mumpsdeps]
 
-
 mpi = dependency('mpi', required: false)
-# HACKY: intel-mpi isn't found on Ruche. 
+# HACK: intel-mpi isn't found on Ruche.
 # The workaround is to set the env variable CC=mpiicx to compile with mpi enabled
 if mpi.found()
   deps += mpi
@@ -113,9 +109,9 @@ endif
 # Link with mkl if requested
 if get_option('mkl')
   mkl = [
-       cc.find_library('mkl_intel_lp64'),
-       cc.find_library('mkl_intel_thread'),
-       cc.find_library('mkl_core'),
+    cc.find_library('mkl_intel_lp64'),
+    cc.find_library('mkl_intel_thread'),
+    cc.find_library('mkl_core'),
   ]
   deps += mkl
 endif
@@ -127,11 +123,10 @@ if earlib.found()
   ear = declare_dependency(
     dependencies: earlib,
     include_directories: ear_install_path / 'include',
-    )
+  )
   deps += ear
   add_global_arguments('-DUSE_EAR', language: 'c')
 endif
-
 
 # Define subdirectories and build targets
 src = []
@@ -139,11 +134,12 @@ inc = include_directories('include', 'src')
 
 subdir('src')
 
-executable('mumps',
+executable(
+  'mumps',
   sources: src,
   dependencies: deps,
   include_directories: inc,
-  install: true
+  install: true,
 )
 
 # Add the launching scripts to the install directory
