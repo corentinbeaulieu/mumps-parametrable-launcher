@@ -179,16 +179,17 @@ int main (int argc, char *argv[]) {
         }
         a.spec = (typeof(a.spec)) atoi(argv[optind++]);
 
-
         int64_t               *ptr         = nullptr;
         enum spral_matrix_type matrix_type = SPRAL_MATRIX_UNSPECIFIED;
 
-        const int64_t max_nnz_band = bandwidth * (2lu * a.n - bandwidth - 1lu) + a.n;
+        const int64_t max_nnz_band =
+            bandwidth * (2lu * (int64_t) a.n - bandwidth - 1lu) + (int64_t) a.n;
 
         // The generator returns an error (-3) if nnz is too high in regard of n.
         // The maximal value of nnz depends on whether the matrix is symmetric or not
         int64_t max_nnz = global
-                              ? a.n * a.n //*< Number of elements in the dense matrix
+                              ? (int64_t) a.n * (int64_t) a.n
+                              //*< Number of elements in the dense matrix
                               : max_nnz_band; //*< Number of elements in the dense band
 
         // Translate input parameters into spral enum
@@ -258,10 +259,8 @@ int main (int argc, char *argv[]) {
 
             conversion_CSC_to_COO(a.nnz, a.n, ptr, a.jcn);
             free(ptr);
-
         }
-        snprintf(name, 128, "exp-%d-%lf-%lf-%d", a.n, bandwidth_ratio, density,
-                a.spec);
+        snprintf(name, 128, "exp-%d-%lf-%lf-%d", a.n, bandwidth_ratio, density, a.spec);
     }
 
     mumps_t info = {
@@ -274,17 +273,21 @@ int main (int argc, char *argv[]) {
     };
 
     {
-        char buf[128] = {0};
-        snprintf(buf, 128, "_%dx%d-%d-%d-%d", size, info.icntl_13,
-                 info.par, info.icntl_16, info.partition_agent);
+        char buf[128] = { 0 };
+        snprintf(buf, 128, "_%dx%d-%d-%d-%d", size, info.icntl_16, info.par,
+                 info.icntl_13, info.partition_agent);
         strncat(name, buf, 128);
     }
+    printf("RANK %d: %p, %p, %p\n", rank, (void *) info.a.d_array, (void *) info.a.irn,
+           (void *) info.a.jcn);
 
-    if(mumps_init(&info) != EXIT_SUCCESS) goto cleanup;
+    if (mumps_init(&info) != EXIT_SUCCESS) {
+        goto cleanup;
+    }
 
 #ifdef USE_EAR
     // EAR energy measurement setup
-    bool ear_ok = true;
+    bool          ear_ok = true;
     unsigned long e_mj = 0, e_mj_start = 0, e_mj_end = 0;
     unsigned long t_ms = 0, t_ms_start = 0, t_ms_end = 0;
 
@@ -297,7 +300,10 @@ int main (int argc, char *argv[]) {
 #endif
 
     if ((analysis == true) || (readfile == true)) {
-        if(mumps_run_ana(&info) != EXIT_SUCCESS) goto cleanup_full;
+        if (mumps_run_ana(&info) != EXIT_SUCCESS) {
+            goto cleanup_full;
+        }
+        mumps_save(&info, 256, name);
 
 #ifdef USE_EAR
         if ((ear_ok == true) && (ear_energy(&e_mj_end, &t_ms_end) != EAR_SUCCESS)) {
@@ -307,26 +313,27 @@ int main (int argc, char *argv[]) {
         if (ear_ok == true) {
             ear_energy_diff(e_mj_start, e_mj_end, &e_mj, t_ms_start, t_ms_end, &t_ms);
             if (rank == 0) {
-                printf("ANALYSIS EAR ENERGY = %16lu mJ, TIME = %16lu ms, POWER = %16.6lf W\n",
-                        e_mj,
-                        t_ms,
-                        (double) e_mj / (double) t_ms);
+                printf("ANALYSIS EAR ENERGY = %16lu mJ, TIME = %16lu ms, POWER = "
+                       "%16.6lf W\n",
+                       e_mj, t_ms, (double) e_mj / (double) t_ms);
             }
         }
         if ((ear_ok == true) && (ear_energy(&e_mj_start, &t_ms_start) != EAR_SUCCESS)) {
             ear_ok = false;
         }
 #endif
-
     }
     else if (mumps_restore(&info, 256, name) != EXIT_SUCCESS) {
-        if(mumps_run_ana(&info) != EXIT_SUCCESS) goto cleanup_full;
+        if (mumps_run_ana(&info) != EXIT_SUCCESS) {
+            goto cleanup_full;
+        }
+        mumps_save(&info, 256, name);
     }
 
-    mumps_save(&info, 256, name);
-
     if (facto == true) {
-        if(mumps_run_facto(&info) != EXIT_SUCCESS) goto cleanup_full;
+        if (mumps_run_facto(&info) != EXIT_SUCCESS) {
+            goto cleanup_full;
+        }
 
 #ifdef USE_EAR
         if ((ear_ok == true) && (ear_energy(&e_mj_end, &t_ms_end) != EAR_SUCCESS)) {
@@ -336,17 +343,15 @@ int main (int argc, char *argv[]) {
         if (ear_ok == true) {
             ear_energy_diff(e_mj_start, e_mj_end, &e_mj, t_ms_start, t_ms_end, &t_ms);
             if (rank == 0) {
-                printf("FACTORIZATION EAR ENERGY = %16lu mJ, TIME = %16lu ms, POWER = %16.6lf W\n",
-                        e_mj,
-                        t_ms,
-                        (double) e_mj / (double) t_ms);
+                printf("FACTORIZATION EAR ENERGY = %16lu mJ, TIME = %16lu ms, POWER = "
+                       "%16.6lf W\n",
+                       e_mj, t_ms, (double) e_mj / (double) t_ms);
             }
         }
         if ((ear_ok == true) && (ear_energy(&e_mj_start, &t_ms_start) != EAR_SUCCESS)) {
             ear_ok = false;
         }
 #endif
-
     }
 
     if (resolve == true) {
@@ -360,17 +365,15 @@ int main (int argc, char *argv[]) {
         if (ear_ok == true) {
             ear_energy_diff(e_mj_start, e_mj_end, &e_mj, t_ms_start, t_ms_end, &t_ms);
             if (rank == 0) {
-                printf("RESOLVE EAR ENERGY = %16lu mJ, TIME = %16lu ms, POWER = %16.6lf W\n",
-                        e_mj,
-                        t_ms,
-                        (double) e_mj / (double) t_ms);
+                printf("RESOLVE EAR ENERGY = %16lu mJ, TIME = %16lu ms, POWER = "
+                       "%16.6lf W\n",
+                       e_mj, t_ms, (double) e_mj / (double) t_ms);
             }
         }
         if ((ear_ok == true) && (ear_energy(&e_mj_start, &t_ms_start) != EAR_SUCCESS)) {
             ear_ok = false;
         }
 #endif
-
     }
 cleanup_full:
     mumps_finalize(&info);
