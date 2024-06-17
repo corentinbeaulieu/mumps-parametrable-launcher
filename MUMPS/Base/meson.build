@@ -143,9 +143,30 @@ executable(
 )
 
 # Add the launching scripts to the install directory
-install_data(meson.project_source_root() / 'run_mumps.sh', 
+install_data(
+  meson.project_source_root() / 'run_mumps.sh',
   install_dir: prefix / 'bin',
-  install_mode: 'r-xr-xr-x'
+  install_mode: 'rwxr-xr-x',
+)
+install_data(
+  meson.project_source_root() / 'run_mumps_analysis_perf.sh',
+  install_dir: prefix / 'bin',
+  install_mode: 'rwxr-xr-x',
+)
+install_data(
+  meson.project_source_root() / 'run_mumps_analysis_energy.sh',
+  install_dir: prefix / 'bin',
+  install_mode: 'rwxr-xr-x',
+)
+install_data(
+  meson.project_source_root() / 'run_mumps_factorization_perf.sh',
+  install_dir: prefix / 'bin',
+  install_mode: 'rwxr-xr-x',
+)
+install_data(
+  meson.project_source_root() / 'run_mumps_factorization_energy.sh',
+  install_dir: prefix / 'bin',
+  install_mode: 'rwxr-xr-x',
 )
 
 # Documentation generation
