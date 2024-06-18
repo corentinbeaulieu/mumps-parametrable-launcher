@@ -137,7 +137,7 @@ if [[ "$synthetic" == "True" ]]; then
     if [[ "$stage" == "Analysis" ]]; then
         # Launch the MUMPS executable with the given matrix size and symmetry
         KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=32G --time=00:05:00 "$ear_options" --exclude="$node_list" \
+            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=32G --time=00:05:00 $ear_options --exclude="$node_list" \
             srun ./mumps "-ag" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
             1>"$outputfile" 2>>err.out
 
@@ -145,7 +145,7 @@ if [[ "$synthetic" == "True" ]]; then
     else
         # Launch the MUMPS executable with the given matrix size and symmetry
         KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=32G --time=00:05:00 "$ear_options" --exclude="$node_list" \
+            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=32G --time=00:05:00 $ear_options --exclude="$node_list" \
             srun ./mumps "-fg" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
             1>"$outputfile" 2>>err.out
     fi
@@ -224,7 +224,7 @@ else
     if [[ "$stage" == "Analysis" ]]; then
         # Launch the MUMPS executable with the given matrix size and symmetry
         KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=96G --time=00:10:00 "$ear_options" --exclude="$node_list" \
+            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=96G --time=00:10:00 $ear_options --exclude="$node_list" \
             srun ./mumps "-ai" "$matrix" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
             1>"$outputfile" 2>>err.out
 
@@ -232,7 +232,7 @@ else
     else
         # Launch the MUMPS executable with the given matrix size and symmetry
         KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=96G --time=00:10:00 "$ear_options" --exclude="$node_list" \
+            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=96G --time=00:10:00 $ear_options --exclude="$node_list" \
             srun ./mumps "-fi" "$matrix" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
             1>"$outputfile" 2>>err.out
     fi

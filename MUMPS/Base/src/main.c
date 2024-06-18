@@ -208,8 +208,8 @@ int main (int argc, char *argv[]) {
         }
         a.nnz = (typeof(a.nnz)) (density * (double) max_nnz);
 
-        if (a.n > a.nnz) {
-            a.nnz = a.n + 1;
+        if ((a.n + 10) > a.nnz) {
+            a.nnz = a.n + 11;
         }
         if (a.nnz > max_nnz_band) {
             a.nnz = max_nnz_band - 1;
