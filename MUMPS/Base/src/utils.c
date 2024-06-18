@@ -210,21 +210,22 @@ void conversion_CSC_to_COO (const ssize_t nnz, const ssize_t n,
  */
 void print_help (const char program_name[]) {
 
-    printf(
-        "\x1b[33mUSAGE:\x1b[0m %s -i input_file PAR ICNTL_13 ICNTL_16\n"
-        "       %s data_type N bandwith density symmetry_type PAR ICNTL_13 ICNTL_16 "
-        "ordering\n"
-        "with\n"
-        "     data_type      0 (real) or 1 (complex_number)\n"
-        "     N              width/height of the generated matrix\n"
-        "     bandwidth      width of the upper/lower band\n"
-        "     density        density of non-zeroes of the band (must be > 1/N and < 1\n"
-        "     symmetry_type  0 (unsymmetric), 1 (positive_definite), 2 (symmetric)\n"
-        "\nOptions:\n\t-h\tprint this help and exit\n"
-        "\t-s seed\tseed for random generation\n"
-        "\t-a\tdo the analysis phase (default: -af)\n"
-        "\t-f\tdo the factorisation phase (default: -af)\n"
-        "\t-r\tdo the resolving phase (default: -af)\n"
-        "\t-g\tuse global matrix density\n\n",
-        program_name, program_name);
+    printf("\x1b[33mUSAGE:\x1b[0m %s -i input_file PAR ICNTL_13 ICNTL_16\n"
+           "       %s data_type N bandwith density symmetry_type PAR ICNTL_13 ICNTL_16 "
+           "ordering\n"
+           "with\n"
+           "     data_type      0 (real) or 1 (complex_number)\n"
+           "     N              width/height of the generated matrix\n"
+           "     bandwidth      width of the upper/lower band\n"
+           "     density        density of non-zeroes of the band (must be > 1/N and < "
+           "1)\n"
+           "     symmetry_type  0 (unsymmetric), 1 (positive_definite), 2 (symmetric)\n"
+           "\nOptions:\n\t-h\tprint this help and exit\n"
+           "\t-s seed\tseed for random generation\n"
+           "\t-i file\tmtx file to process\n"
+           "\t-a\tdo the analysis phase (default: -af)\n"
+           "\t-f\tdo the factorisation phase (default: -af)\n"
+           "\t-r\tdo the resolving phase (default: -af)\n"
+           "\t-g\tuse global matrix density\n\n",
+           program_name, program_name);
 }

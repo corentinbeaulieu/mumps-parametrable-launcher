@@ -64,6 +64,7 @@ int main (int argc, char *argv[]) {
         switch (opt) {
             case 'h': // Print help and exit
                 print_help(argv[0]);
+                MPI_Finalize();
                 return EXIT_SUCCESS;
             case 'i': // Don't use the generator
                 readfile = true;

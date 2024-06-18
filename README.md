@@ -13,10 +13,12 @@ In this folder, we have the following files/directories
 - `config.json`: the configuration file for the ML-KAPS experiment.
 - `src/`: directory with the sources of a program calling MUMPS resolution on it.
 - `include/`: directory with the include files needed to compile the project.
+- `scripts/`: directory with the launching scripts.
 - `doc/`: directory with the generated documentation of this project (please see below for generation).
+- `other/`: directory with MLKAPS configuration file, global sbatch script...
 - `meson.build`: meson configuration to build and install the project
-- `run_mumps.sh`: script to call the previous program with specific parameters. This is the script called by MLKAPS.
-- `run_mlkaps.batch`: a slurm batch script to launch the ML-KAPS experiment (**make sure to modify the paths**).
+- `scripts/run_mumps.sh`: script to call the previous program with specific parameters. This is the script called by MLKAPS.
+- `other/run_mlkaps.batch`: a slurm batch script to launch the ML-KAPS experiment (**make sure to modify the paths**).
 
 ### utils
 
@@ -89,6 +91,7 @@ with
 Options:
     -h	        print this help and exit
     -s seed 	seed for random generation
+    -i file     mtx file describing the matrix
     -a          do the analysis stage
     -f          do the factorization stage
     -r          enable MUMPS resolution stage
@@ -101,11 +104,13 @@ By default, if neither of the `afr` options are passed, the program calls MUMPS 
 To run an experiment on SLURM based system, we use the `run_mumps.sh` script as followed
 
 ```
-./run_mumps.sh n bandwidth density symmetry num_proc num_threads par inctl13 ordering
+./run_mumps.sh job synthetic n bandwidth density symmetry num_proc num_threads par inctl13 ordering
 ```
 
 with
 
+- **job** Control which stage executed and metric returned ("ap" == analysis performance, "fe" == factorization energy...)
+- **synthetic** Control whether we use the generator or a matrix from the [dataset](#Dataset)
 - **n** Rank of the matrix
 - **bandwidth** Maximal upper/lower bandwidth of the matrix
 - **density** Global density of nnz in the matrix ($\\frac{nnz}{n^2}$)
@@ -120,6 +125,9 @@ with
   - **2** Use PORD  (_ICNTL(7)_ = 4)
   - **3** Use SCOTCH (_ICNTL(7)_ = 3)
   - **4** Use PT-SCOTCH (_ICNTL(27)_ = 2 _ICNTL(29)_ = 1)
+
+The `run_mumps_analysis_perf.sh` `run_mumps_analysis_energy.sh` `run_mumps_factorization_perf.sh` `run_mumps_factorization_energy.sh`
+scripts (located in `scripts/`) are helper scripts to common job/synthetic choices (always synthetic).
 
 ### SPRAL
 
