@@ -15,7 +15,7 @@
 #include <spral.h>
 
 /** @brief Macro to easily convert C indexing into MUMPS fortran ones */
-#define ICNTL(i) icntl[(i) -1]
+#define ICNTL(i) icntl[(i) - 1]
 
 /**
  * @brief Errors that can be encountered while parsing a MatrixMarket file
@@ -59,6 +59,7 @@ typedef struct {
 
 
 parse_error_t parseMTX (const char *const input_file, matrix_t a[static 1]);
+void          write_to_mtx (const matrix_t a[static 1]);
 
 void dgenerate_rhs (const MUMPS_INT n, const MUMPS_INT8 nnz,
                     const MUMPS_INT   irn[restrict static nnz],

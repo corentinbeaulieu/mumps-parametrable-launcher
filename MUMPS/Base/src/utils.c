@@ -112,12 +112,34 @@ parse_error_t parseMTX (const char *const input_file, matrix_t a[static 1]) {
     return Success;
 }
 
+void write_to_mtx (const matrix_t a[static 1]) {
+
+    if (a->spec == Unsymmetric) {
+        printf("%%MatrixMarket matrix coordinate real general\n"
+               "%d %d %ld\n",
+               a->n, a->n, a->nnz);
+        for (ssize_t i = 0; i < a->nnz; i++) {
+            printf("%d %d %lf\n", a->irn[i], a->jcn[i], a->d_array[i]);
+        }
+    }
+    else {
+        printf("%%MatrixMarket matrix coordinate real symmetric\n"
+               "%d %d %ld\n",
+               a->n, a->n, a->nnz);
+        for (ssize_t i = 0; i < a->nnz; i++) {
+            if (a->irn[i] >= a->jcn[i]) {
+                printf("%d %d %lf\n", a->irn[i], a->jcn[i], a->d_array[i]);
+            }
+        }
+    }
+}
+
 
 /**
  * @brief Generate a vector with double precision floats
  *
- * It is supposed to return a rhs which gives a unit vector as x upon resolution of the
- *  linear system.
+ * It is supposed to return a rhs which gives a unit vector as x upon resolution of
+ * the linear system.
  *
  * @warning This function is broken
  * @warning It generates a vector but not with the desired properties
@@ -179,6 +201,7 @@ void zgenerate_rhs (const MUMPS_INT n, const MUMPS_INT8 nnz,
     }
 }
 
+
 /**
  * @brief Converts a matrix in CSC format into COO format.
  *
@@ -210,7 +233,7 @@ void conversion_CSC_to_COO (const ssize_t nnz, const ssize_t n,
  */
 void print_help (const char program_name[]) {
 
-    printf("\x1b[33mUSAGE:\x1b[0m %s -i input_file PAR ICNTL_13 ICNTL_16\n"
+    printf("\x1b[33mUSAGE:\x1b[0m %s -i input_file PAR ICNTL_13 ICNTL_16 ordering\n"
            "       %s data_type N bandwith density symmetry_type PAR ICNTL_13 ICNTL_16 "
            "ordering\n"
            "with\n"
@@ -220,12 +243,14 @@ void print_help (const char program_name[]) {
            "     density        density of non-zeroes of the band (must be > 1/N and < "
            "1)\n"
            "     symmetry_type  0 (unsymmetric), 1 (positive_definite), 2 (symmetric)\n"
+           "     ordering       1 (metis), 2 (pord), 3 (scotch), 4 (ptscotch)\n"
            "\nOptions:\n\t-h\tprint this help and exit\n"
            "\t-s seed\tseed for random generation\n"
            "\t-i file\tmtx file to process\n"
-           "\t-a\tdo the analysis phase (default: -af)\n"
+           "\t-a\tdo the analysis phase      (default: -af)\n"
            "\t-f\tdo the factorisation phase (default: -af)\n"
-           "\t-r\tdo the resolving phase (default: -af)\n"
-           "\t-g\tuse global matrix density\n\n",
-           program_name, program_name);
+           "\t-r\tdo the resolving phase     (default: -af)\n"
+           "\t-g\tuse global matrix density\n",
+           "\t-w\tprint the matrix in MTX format and exit\n\n", program_name,
+           program_name);
 }

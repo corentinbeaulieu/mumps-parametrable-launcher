@@ -1,41 +1,48 @@
-
-option('metis-path',
+option(
+  'metis-path',
   type: 'string',
   value: '/usr',
-  description: 'Path to METIS install directory'
+  description: 'Path to METIS install directory',
 )
-option('scotch',
+option(
+  'scotch',
   type: 'boolean',
   value: false,
-  description: 'Build with SCOTCH as a dependency'
+  description: 'Build with SCOTCH as a dependency',
 )
-option('scotch-path',
+option(
+  'scotch-path',
   type: 'string',
   value: '/usr',
-  description: 'Path to SCOTCH install directory'
+  description: 'Path to SCOTCH install directory',
 )
-option('spral-path',
+option(
+  'spral-path',
   type: 'string',
   value: '/usr',
-  description: 'Path to SPRAL install directory'
+  description: 'Path to SPRAL install directory',
 )
-option('mumps-path',
+option(
+  'mumps-path',
   type: 'string',
   value: '/usr',
-  description: 'Path to MUMPS install directory'
+  description: 'Path to MUMPS install directory',
 )
-option('ear-path',
+option(
+  'ear-path',
   type: 'string',
   value: '/usr',
-  description: 'Path to EAR install directory ($EAR_INSTALL_DIR)'
+  description: 'Path to EAR install directory ($EAR_INSTALL_DIR)',
 )
-option('doc',
+option(
+  'doc',
   type: 'boolean',
   value: false,
-  description: 'Generate the documentation'
+  description: 'Generate the documentation',
 )
-option('mkl',
+option(
+  'mkl',
   type: 'boolean',
   value: false,
-  description: 'Build with MKL as a dependency'
+  description: 'Build with MKL as a dependency',
 )

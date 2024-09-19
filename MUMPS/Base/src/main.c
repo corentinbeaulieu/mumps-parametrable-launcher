@@ -17,6 +17,7 @@
 #include <err.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <mpi.h>
@@ -58,9 +59,10 @@ int main (int argc, char *argv[]) {
     bool facto    = false;
     bool resolve  = false;
     bool global   = false;
+    bool mtxwrite = false;
 
     // Get the options
-    while ((opt = getopt(argc, argv, "ighfars:")) != -1) {
+    while ((opt = getopt(argc, argv, "ighfarws:")) != -1) {
         switch (opt) {
             case 'h': // Print help and exit
                 print_help(argv[0]);
@@ -83,6 +85,9 @@ int main (int argc, char *argv[]) {
                 break;
             case 's': // Provide a seed for the generator
                 state = (int) atoi(optarg);
+                break;
+            case 'w': // Write the matrix to stdout
+                mtxwrite = true;
                 break;
             default:
                 print_help(argv[0]);
@@ -199,21 +204,28 @@ int main (int argc, char *argv[]) {
                 matrix_type = SPRAL_MATRIX_REAL_UNSYM;
                 break;
             case Symmetric:
-                max_nnz     = (max_nnz + a.n) / 2;
                 matrix_type = SPRAL_MATRIX_REAL_SYM_INDEF;
                 break;
             case SymmetricPositiveDefinite:
-                max_nnz     = (max_nnz + a.n) / 2;
                 matrix_type = SPRAL_MATRIX_REAL_SYM_PSDEF;
                 break;
         }
         a.nnz = (typeof(a.nnz)) (density * (double) max_nnz);
 
-        if ((a.n + 10) > a.nnz) {
-            a.nnz = a.n + 11;
+        if ((a.n + 0) > a.nnz) {
+            fprintf(stderr,
+                    "ERROR: Impossible generation: Too few nnz compared to the size of "
+                    "the matrix\n");
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
         if (a.nnz > max_nnz_band) {
-            a.nnz = max_nnz_band - 1;
+            fprintf(stderr, "ERROR: Impossible generation: Too much nnz compared to "
+                            "the bandwidth\n");
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        }
+
+        if (a.spec != Unsymmetric) {
+            a.nnz = (a.nnz + a.n) / 2;
         }
 
         if (rank == 0) {
@@ -264,6 +276,11 @@ int main (int argc, char *argv[]) {
         snprintf(name, 128, "exp-%d-%lf-%lf-%d", a.n, bandwidth_ratio, density, a.spec);
     }
 
+    if (mtxwrite == true) {
+        write_to_mtx(&a);
+        goto cleanup;
+    }
+
     mumps_t info = {
         .a               = a,
         .rhs             = nullptr,
@@ -279,12 +296,12 @@ int main (int argc, char *argv[]) {
                  info.icntl_13, info.partition_agent);
         strncat(name, buf, 128);
     }
-    printf("RANK %d: %p, %p, %p\n", rank, (void *) info.a.d_array, (void *) info.a.irn,
-           (void *) info.a.jcn);
 
     if (mumps_init(&info) != EXIT_SUCCESS) {
         goto cleanup;
     }
+
+    struct timespec tsBegin = { 0 }, tsEnd = { 0 };
 
 #ifdef USE_EAR
     // EAR energy measurement setup
@@ -300,11 +317,27 @@ int main (int argc, char *argv[]) {
     }
 #endif
 
+
     if ((analysis == true) || (readfile == true)) {
+        clock_gettime(CLOCK_MONOTONIC_RAW, &tsBegin);
+
         if (mumps_run_ana(&info) != EXIT_SUCCESS) {
             goto cleanup_full;
         }
+
+        clock_gettime(CLOCK_MONOTONIC_RAW, &tsEnd);
+
+        const double elapsed = (double) (tsEnd.tv_sec - tsBegin.tv_sec)
+                               + (double) ((tsEnd.tv_nsec - tsBegin.tv_nsec) * 1e-9);
+        double max_elapsed = 0.0;
+
+        MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        if (rank == 0) {
+            printf(" Analysis time by clock_gettime(): %.3lf s\n", max_elapsed);
+        }
+
         mumps_save(&info, 256, name);
+
 
 #ifdef USE_EAR
         if ((ear_ok == true) && (ear_energy(&e_mj_end, &t_ms_end) != EAR_SUCCESS)) {
@@ -325,15 +358,42 @@ int main (int argc, char *argv[]) {
 #endif
     }
     else if (mumps_restore(&info, 256, name) != EXIT_SUCCESS) {
+        clock_gettime(CLOCK_MONOTONIC_RAW, &tsBegin);
+
         if (mumps_run_ana(&info) != EXIT_SUCCESS) {
             goto cleanup_full;
         }
+
+        clock_gettime(CLOCK_MONOTONIC_RAW, &tsEnd);
+
+        const double elapsed = (double) (tsEnd.tv_sec - tsBegin.tv_sec)
+                               + (double) ((tsEnd.tv_nsec - tsBegin.tv_nsec) * 1e-9);
+        double max_elapsed = 0.0;
+
+        MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        if (rank == 0) {
+            printf(" Analysis time by clock_gettime(): %.3lf s\n", max_elapsed);
+        }
+
         mumps_save(&info, 256, name);
     }
 
     if (facto == true) {
+        clock_gettime(CLOCK_MONOTONIC_RAW, &tsBegin);
+
         if (mumps_run_facto(&info) != EXIT_SUCCESS) {
             goto cleanup_full;
+        }
+
+        clock_gettime(CLOCK_MONOTONIC_RAW, &tsEnd);
+
+        const double elapsed = (double) (tsEnd.tv_sec - tsBegin.tv_sec)
+                               + (double) ((tsEnd.tv_nsec - tsBegin.tv_nsec) * 1e-9);
+        double max_elapsed = 0.0;
+
+        MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        if (rank == 0) {
+            printf(" Factorization time by clock_gettime(): %.4lf s\n", elapsed);
         }
 
 #ifdef USE_EAR
