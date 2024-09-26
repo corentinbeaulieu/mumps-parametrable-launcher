@@ -107,22 +107,22 @@ By default, if neither of the `afr` options are passed, the program calls MUMPS 
 Upon installation, helper scripts are installed as well in the installation directory. To run an experiment, we use the `run_mumps.sh` script as followed
 
 ```
-./run_mumps.sh job synthetic n bandwidth density symmetry num_proc num_threads par inctl13 ordering
+./run_mumps job n bandwidth density symmetry num_proc num_threads par inctl13 ordering
 ```
 
 or, to read a MTX format matrix to factorize
 
 ```
-./run_mumps_file.sh input num_proc num_threads par icntl_13 ordering
+./run_mumps_file input num_proc num_threads par icntl_13 ordering
 ```
 
 with
 
-- **job** Control which stage executed and metric returned ("ap" == analysis performance, "fe" == factorization energy...)
-- **synthetic** Control whether we use the generator or a matrix from the [dataset](#Dataset)
+- **input** Path to a file in MTX format containing the matrix to factorize
+- **job** Control which stage executed and metric returned ("at" == analysis time, "fe" == factorization energy, "aft" == analysis and factorization time (separated by a comma in the output)...)
 - **n** Rank of the matrix
 - **bandwidth** Maximal upper/lower bandwidth of the matrix
-- **density** Global density of nnz in the matrix $\\left(\\frac{nnz}{n^2}\\right)$
+- **density** Global density of nnz in the matrix $\left(\frac{nnz}{n^2}\right)$
 - **symmetry** Type of symmetry of the matrix (please see `mumps` executable usage for further details)
 - **num_proc** Number of MPI ranks to run with
 - **num_theads** Number of OpenMP threads to run with
@@ -135,8 +135,8 @@ with
   - **3** Use SCOTCH (_ICNTL(7)_ = 3)
   - **4** Use PT-SCOTCH (_ICNTL(27)_ = 2 _ICNTL(29)_ = 1)
 
-The `run_mumps_analysis_perf.sh` `run_mumps_analysis_energy.sh` `run_mumps_factorization_perf.sh` `run_mumps_factorization_energy.sh`
-scripts (installed withe the program) are helper scripts to common job/synthetic choices (always synthetic).
+The `run_mumps_analysis_time` `run_mumps_analysis_energy` `run_mumps_factorization_time` `run_mumps_factorization_energy`
+scripts (installed with the program) are helper scripts to common job choices.
 
 <details>
 <summary> Repository structure </summary>
