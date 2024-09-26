@@ -5,7 +5,7 @@ project(
   default_options: [
     'prefix=' + meson.project_source_root(),
     'buildtype=debugoptimized',
-    'warning_level=3',
+    'warning_level=0',
   ],
 )
 
@@ -81,11 +81,8 @@ mumpsdeps = declare_dependency(dependencies: [dmumps_lib, zmumps_lib], include_d
 # Define mandatory dependencies
 deps = [metis, spral, mumpsdeps]
 
-mpi = dependency('mpi', required: false)
-# HACK: intel-mpi isn't found on Ruche.
-# The workaround is to set the env variable CC=mpiicx to compile with mpi enabled
-if mpi.found()
-  deps += mpi
+if get_option('mpi')
+  deps += dependency('mpi', required: true)
 endif
 
 # Link with SCOTCH library if requested
@@ -142,29 +139,69 @@ executable(
   install: true,
 )
 
+if get_option('cluster')
+  launch_command = '''salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=32G --time=00:05:00 $ear_options --exclude="$node_list" \
+             srun'''
+else
+  launch_command = 'mpirun -np "$num_proc" '
+endif
 # Add the launching scripts to the install directory
-install_data(
-  meson.project_source_root() / 'scripts' / 'run_mumps.sh',
+if get_option('spack')
+  script_config = configuration_data(
+    {
+      'MUMPS_EXEC_CALL': 'mumps',
+      'RUN_MUMPS_CALL': 'run_mumps.sh',
+      'LAUNCH_CMD': launch_command,
+    },
+  )
+else
+  script_config = configuration_data(
+    {
+      'MUMPS_EXEC_CALL': './mumps',
+      'RUN_MUMPS_CALL': './run_mumps.sh',
+      'LAUNCH_CMD': launch_command,
+    },
+  )
+endif
+
+configure_file(
+  input: meson.project_source_root() / 'scripts' / 'run_mumps.sh.in',
+  configuration: script_config,
+  output: 'run_mumps.sh',
+  install: true,
   install_dir: prefix / 'bin',
   install_mode: 'rwxr-xr-x',
 )
-install_data(
-  meson.project_source_root() / 'scripts' / 'run_mumps_analysis_perf.sh',
+
+configure_file(
+  input: meson.project_source_root() / 'scripts' / 'run_mumps_analysis_perf.sh.in',
+  configuration: script_config,
+  output: 'run_mumps_analysis_perf.sh',
+  install: true,
   install_dir: prefix / 'bin',
   install_mode: 'rwxr-xr-x',
 )
-install_data(
-  meson.project_source_root() / 'scripts' / 'run_mumps_analysis_energy.sh',
+configure_file(
+  input: meson.project_source_root() / 'scripts' / 'run_mumps_analysis_energy.sh.in',
+  configuration: script_config,
+  output: 'run_mumps_analysis_energy.sh',
+  install: true,
   install_dir: prefix / 'bin',
   install_mode: 'rwxr-xr-x',
 )
-install_data(
-  meson.project_source_root() / 'scripts' / 'run_mumps_factorization_perf.sh',
+configure_file(
+  input: meson.project_source_root() / 'scripts' / 'run_mumps_factorization_perf.sh.in',
+  configuration: script_config,
+  output: 'run_mumps_factorization_perf.sh',
+  install: true,
   install_dir: prefix / 'bin',
   install_mode: 'rwxr-xr-x',
 )
-install_data(
-  meson.project_source_root() / 'scripts' / 'run_mumps_factorization_energy.sh',
+configure_file(
+  input: meson.project_source_root() / 'scripts' / 'run_mumps_factorization_energy.sh.in',
+  configuration: script_config,
+  output: 'run_mumps_factorization_energy.sh',
+  install: true,
   install_dir: prefix / 'bin',
   install_mode: 'rwxr-xr-x',
 )

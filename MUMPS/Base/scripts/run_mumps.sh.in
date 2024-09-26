@@ -122,8 +122,11 @@ case "$ordering" in
 esac
 
 matrix="${WORKDIR}/Dataset/"
-rand=$RANDOM
-outputfile="${WORKDIR}/tmp/tmp${rand}.out"
+timestamp=$(date -u +"%Y%m%d%H%M%S")
+outputdir="${WORKDIR}/tmp/mumps_launches"
+outputfile="${outputdir}/tmp${timestamp}.out"
+
+mkdir -p "${outputdir}"
 
 # EAR salloc options
 ear_options="--ear=on --ear-user-db=eardata --ear-cpufreq=2100000"
@@ -137,16 +140,14 @@ if [[ "$synthetic" == "True" ]]; then
     if [[ "$stage" == "Analysis" ]]; then
         # Launch the MUMPS executable with the given matrix size and symmetry
         KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=32G --time=00:05:00 $ear_options --exclude="$node_list" \
-            srun ./mumps "-ag" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
+            @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-ag" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
             1>"$outputfile" 2>>err.out
 
     # Run Factorization stage
     else
         # Launch the MUMPS executable with the given matrix size and symmetry
         KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=32G --time=00:05:00 $ear_options --exclude="$node_list" \
-            srun ./mumps "-fg" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
+            @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-fg" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
             1>"$outputfile" 2>>err.out
     fi
 
@@ -225,7 +226,7 @@ else
         # Launch the MUMPS executable with the given matrix size and symmetry
         KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
             salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=96G --time=00:10:00 $ear_options --exclude="$node_list" \
-            srun ./mumps "-ai" "$matrix" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
+            srun @MUMPS_EXEC_CALL@ "-ai" "$matrix" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
             1>"$outputfile" 2>>err.out
 
     # Run Factorization stage
@@ -233,7 +234,7 @@ else
         # Launch the MUMPS executable with the given matrix size and symmetry
         KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
             salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=96G --time=00:10:00 $ear_options --exclude="$node_list" \
-            srun ./mumps "-fi" "$matrix" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
+            srun @MUMPS_EXEC_CALL@ "-fi" "$matrix" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
             1>"$outputfile" 2>>err.out
     fi
 fi
@@ -280,4 +281,4 @@ fi
 # Retrieve the result
 echo "$result"
 
-rm -f "$outputfile"
+# rm -f "$outputfile"

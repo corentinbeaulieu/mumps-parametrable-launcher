@@ -46,3 +46,21 @@ option(
   value: false,
   description: 'Build with MKL as a dependency',
 )
+option(
+  'mpi',
+  type: 'boolean',
+  value: true,
+  description: 'Link with MPI',
+)
+option(
+  'spack',
+  type: 'boolean',
+  value: false,
+  description: 'Put global path in the script for a use with spack',
+)
+option(
+  'cluster',
+  type: 'boolean',
+  value: false,
+  description: 'Use SLURM command to launch the executables',
+)
