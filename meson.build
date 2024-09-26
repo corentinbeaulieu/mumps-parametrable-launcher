@@ -9,6 +9,7 @@ project(
   ],
 )
 
+executable_name = 'mumps-parametrable-launcher'
 deprecated_c2x = '-std=c2x'
 preferred_c23 = '-std=c23'
 
@@ -132,7 +133,7 @@ inc = include_directories('include', 'src')
 subdir('src')
 
 executable(
-  'mumps-parametrable-launcher',
+  executable_name,
   sources: src,
   dependencies: deps,
   include_directories: inc,
@@ -149,7 +150,7 @@ endif
 if get_option('spack')
   script_config = configuration_data(
     {
-      'MUMPS_EXEC_CALL': 'mumps',
+      'MUMPS_EXEC_CALL': executable_name,
       'RUN_MUMPS_CALL': 'run_mumps.sh',
       'LAUNCH_CMD': launch_command,
     },
@@ -157,7 +158,7 @@ if get_option('spack')
 else
   script_config = configuration_data(
     {
-      'MUMPS_EXEC_CALL': './mumps',
+      'MUMPS_EXEC_CALL': './' + executable_name,
       'RUN_MUMPS_CALL': './run_mumps.sh',
       'LAUNCH_CMD': launch_command,
     },

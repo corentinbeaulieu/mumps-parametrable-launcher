@@ -48,7 +48,7 @@ $ meson setup builddir -Dmetis-path=<metis-root-path> -Dspral-path=<spral-root-p
 
 If you are using INTEL's MKL as your BLAS/LAPACK implementation, we must enable it through `-Dmkl=true` option.
 If you want to generate the *Doxygen* documentation, please use `-Ddoc=true` option.
-If you are using a SLURM based system, you can use the `-Dcluster=true` option to have generate the scripts with 
+If you are using a SLURM based system, you can use the `-Dcluster=true` option to have generate the scripts with
 SLURM's commands in it (`salloc`, `srun`...).
 
 > \[!WARNING\]
@@ -104,7 +104,7 @@ Options:
 By default, if neither of the `afr` options are passed, the program calls MUMPS analysis and factorization
 (equivalent to `-af`).
 
-To run an experiment, we use the `run_mumps.sh` script as followed
+Upon installation, helper scripts are installed as well in the installation directory. To run an experiment, we use the `run_mumps.sh` script as followed
 
 ```
 ./run_mumps.sh job synthetic n bandwidth density symmetry num_proc num_threads par inctl13 ordering
@@ -146,11 +146,8 @@ In this folder, we have the following files/directories
 - `config.json`: the configuration file for the ML-KAPS experiment.
 - `src/`: directory with the sources of a program calling MUMPS resolution on it.
 - `include/`: directory with the include files needed to compile the project.
-- `scripts/`: directory with the launching scripts.
+- `scripts/`: directory with the template launching scripts modified during the building of the project.
 - `doc/`: directory with the generated documentation of this project (please see below for generation).
-- `other/`: directory with MLKAPS configuration file, global sbatch script...
 - `meson.build`: meson configuration to build and install the project
-- `scripts/run_mumps.sh`: script to call the previous program with specific parameters. This is the script called by MLKAPS.
-- `other/run_mlkaps.batch`: a slurm batch script to launch the ML-KAPS experiment (**make sure to modify the paths**).
 
 </details>
