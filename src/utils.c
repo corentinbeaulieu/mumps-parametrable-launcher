@@ -14,7 +14,7 @@
  * currently)
  *
  * @param[in]  input_file     MatrixMarket file to parse
- * @param[out] a              Reprensation of the read matrix
+ * @param[out] a              Read matrix in a COO format
  *
  * @return                    An error code (see @ref parse_error_t)
  */
@@ -112,20 +112,34 @@ parse_error_t parseMTX (const char *const input_file, matrix_t a[static 1]) {
     return Success;
 }
 
+/**
+ * @brief Write the given matrix @p a to the standard output in the MTX format
+ *
+ * @warning Note that only a subpart of the format is supported (the one we need
+ * currently)
+ *
+ * @param[in] a               Matrix to write to MTX format
+ *
+ * @return                    An error code (see @ref parse_error_t)
+ */
 void write_to_mtx (const matrix_t a[static 1]) {
 
     if (a->spec == Unsymmetric) {
+        // Write the MTX header
         printf("%%MatrixMarket matrix coordinate real general\n"
                "%d %d %ld\n",
                a->n, a->n, a->nnz);
+        // Write elements in COO format
         for (ssize_t i = 0; i < a->nnz; i++) {
             printf("%d %d %lf\n", a->irn[i], a->jcn[i], a->d_array[i]);
         }
     }
     else {
+        // Write the MTX header
         printf("%%MatrixMarket matrix coordinate real symmetric\n"
                "%d %d %ld\n",
                a->n, a->n, a->nnz);
+        // Write elements in COO format
         for (ssize_t i = 0; i < a->nnz; i++) {
             if (a->irn[i] >= a->jcn[i]) {
                 printf("%d %d %lf\n", a->irn[i], a->jcn[i], a->d_array[i]);
