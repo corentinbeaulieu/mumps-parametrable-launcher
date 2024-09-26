@@ -1,0 +1,121 @@
+#!/bin/env bash
+
+if [[ $# != 6 ]]; then
+    printf >&2 "\e[33mUSAGE:\e[0m %s matrix num_proc num_threads PAR INCTL(13) ordering" "$0"
+    exit 1
+fi
+
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+    printf "\e[33mUSAGE:\e[0m %s matrix num_proc num_threads PAR INCTL(13) ordering" "$0"
+    exit 0
+fi
+
+matrix=$1
+num_proc=$2
+num_threads=$3
+par=$4
+icntl_13=$5
+ordering=$6
+
+# Check the inputs
+if [[ "$matrix" == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is a wrong matrix file\n" "$matrix"
+    exit 2
+fi
+
+if [[ $(echo "$num_threads" | grep -E -o "[1-9][0-9]*") == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of threads\n" "$num_threads"
+    exit 3
+fi
+
+if [[ $(echo "$num_proc" | grep -E -o "[1-9][0-9]*") == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of MPI ranks\n" "$num_threads"
+    exit 4
+fi
+
+if [[ $(echo "$par" | grep -E -o "(0|1)") == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is not a proper PAR parameter (0 or 1)\n" "$par"
+    exit 5
+fi
+
+if [[ $(echo "$icntl_13" | grep -E -o "([1-9][0-9]*)|-1|0") == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is not a proper ICNTL 13 parameter (-1, 0 or >0)\n" "$icntl_13"
+    exit 6
+fi
+
+case "$ordering" in
+"automatic")
+    ordering_int=0
+    ;;
+"metis")
+    ordering_int=1
+    ;;
+"pord")
+    ordering_int=2
+    ;;
+"scotch")
+    ordering_int=3
+    ;;
+"ptscotch")
+    ordering_int=4
+    ;;
+*)
+    printf >&2 "\e[31mERROR\e[0m %s is not a proper ordering parameter (metis, pord, scotch, ptscotch)\n" "$ordering"
+    exit 11
+    ;;
+esac
+
+# Environment creation
+has_workdir_changed=0
+if [[ ${WORKDIR} == "" ]]; then
+    export WORKDIR="/tmp/mumps_launches"
+    has_workdir_changed=1
+fi
+
+timestamp=$(date -u +"%Y%m%d%H%M%S")
+outputdir="${WORKDIR}/out"
+outputfile="${outputdir}/tmp${timestamp}.out"
+
+mkdir -p "${WORKDIR}/Saved_analysis"
+mkdir -p "${outputdir}"
+
+input=$matrix
+
+# EAR salloc option
+ear_options="--ear=on --ear-user-db=eardata --ear-cpufreq=2100000"
+
+# Log the inputs and the selection
+printf "%s %d %d %d %d %s " "$matrix" "$num_proc" "$num_threads" "$par" "$icntl_13" "$ordering" >>launch.log
+
+# Launch the MUMPS executable on the selected matrix
+KMP_AFFINITY=scatter OMP_NESTED=TRUE KMP_NUM_THREADS=$num_threads OMP_NUM_THREADS=$num_threads \
+    @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-afi" "$input" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
+    1>"$outputfile" 2>>err.out
+
+exec_error=$(grep -E "\*\* ERROR RETURN \*\* FROM DMUMPS INFO\(1\)=" "$outputfile" | cut -d '=' -f2)
+
+# Check for an error
+if [[ $exec_error != "" ]]; then
+    if [[ $(echo "$exec_error" | grep -E -v -- "-7[0-9]") != "" ]]; then
+        printf >&2 "\e[31mERROR\e[0m An error occured during the execution\n"
+        printf "\n" >>launch.log
+        exit 14
+    fi
+fi
+
+# Retrieve the times mesures by MUMPS
+analysis_time=$(grep "Analysis time by clock_gettime" "$outputfile" | grep -E -o "[0-9]*\.[0-9]*")
+factorization_time=$(grep "Factorization time by clock_gettime" "$outputfile" | grep -E -o "[0-9]*\.[0-9]*")
+
+if [[ $analysis_time == "" || $factorization_time == "" ]]; then
+    exit 15
+fi
+
+# Compute the total time and return it to mlkaps
+printf "%s %s\n" "$analysis_time" "$factorization_time" >>launch.log
+echo "$analysis_time,$factorization_time"
+
+if [[ $has_workdir_changed -eq 1 ]]; then
+    unset WORKDIR
+fi
+# rm -f "$outputfile"

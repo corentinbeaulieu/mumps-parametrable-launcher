@@ -116,7 +116,8 @@ endif
 
 # Define scripts to install
 scripts = [
-  'run_mumps'
+  'run_mumps',
+  'run_mumps_file',
   'run_mumps_analysis_time',
   'run_mumps_factorization_time',
 ]
