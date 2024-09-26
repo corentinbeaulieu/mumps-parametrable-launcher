@@ -151,7 +151,7 @@ if get_option('spack')
   script_config = configuration_data(
     {
       'MUMPS_EXEC_CALL': executable_name,
-      'RUN_MUMPS_CALL': 'run_mumps.sh',
+      'RUN_MUMPS_CALL': 'run_mumps',
       'LAUNCH_CMD': launch_command,
     },
   )
@@ -159,7 +159,7 @@ else
   script_config = configuration_data(
     {
       'MUMPS_EXEC_CALL': './' + executable_name,
-      'RUN_MUMPS_CALL': './run_mumps.sh',
+      'RUN_MUMPS_CALL': './run_mumps',
       'LAUNCH_CMD': launch_command,
     },
   )
@@ -168,44 +168,29 @@ endif
 configure_file(
   input: meson.project_source_root() / 'scripts' / 'run_mumps.sh.in',
   configuration: script_config,
-  output: 'run_mumps.sh',
+  output: 'run_mumps',
   install: true,
   install_dir: prefix / 'bin',
   install_mode: 'rwxr-xr-x',
 )
 
-configure_file(
-  input: meson.project_source_root() / 'scripts' / 'run_mumps_analysis_perf.sh.in',
-  configuration: script_config,
-  output: 'run_mumps_analysis_perf.sh',
-  install: true,
-  install_dir: prefix / 'bin',
-  install_mode: 'rwxr-xr-x',
-)
-configure_file(
-  input: meson.project_source_root() / 'scripts' / 'run_mumps_analysis_energy.sh.in',
-  configuration: script_config,
-  output: 'run_mumps_analysis_energy.sh',
-  install: true,
-  install_dir: prefix / 'bin',
-  install_mode: 'rwxr-xr-x',
-)
-configure_file(
-  input: meson.project_source_root() / 'scripts' / 'run_mumps_factorization_perf.sh.in',
-  configuration: script_config,
-  output: 'run_mumps_factorization_perf.sh',
-  install: true,
-  install_dir: prefix / 'bin',
-  install_mode: 'rwxr-xr-x',
-)
-configure_file(
-  input: meson.project_source_root() / 'scripts' / 'run_mumps_factorization_energy.sh.in',
-  configuration: script_config,
-  output: 'run_mumps_factorization_energy.sh',
-  install: true,
-  install_dir: prefix / 'bin',
-  install_mode: 'rwxr-xr-x',
-)
+scripts = [
+  'run_mumps_analysis_time',
+  'run_mumps_analysis_energy',
+  'run_mumps_factorization_time',
+  'run_mumps_factorization_energy',
+]
+foreach script : scripts
+
+  configure_file(
+    input: meson.project_source_root() / 'scripts' / script + '.sh.in',
+    configuration: script_config,
+    output: script,
+    install: true,
+    install_dir: prefix / 'bin',
+    install_mode: 'rwxr-xr-x',
+  )
+endforeach
 
 # Documentation generation
 docgen = get_option('doc')

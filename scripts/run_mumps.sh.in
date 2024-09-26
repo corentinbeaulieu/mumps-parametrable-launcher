@@ -2,22 +2,21 @@
 
 # Check the inputs
 
-if [[ $# != 11 ]]; then
-    printf >&2 "\e[33mUSAGE:\e[0m %s job synthetic n bandwidth density symmetry num_proc num_threads par inctl13 ordering\n" "$0"
+if [[ $# != 10 ]]; then
+    printf >&2 "\e[33mUSAGE:\e[0m %s job n bandwidth density symmetry num_proc num_threads par inctl13 ordering\n" "$0"
     exit 1
 fi
 
 job=$1
-synthetic=$2
-n=$3
-bandwidth=$4
-density=$5
-symmetry=$6
-num_proc=$7
-num_threads=$8
-par=$9
-icntl_13=${10}
-ordering=${11}
+n=$2
+bandwidth=$3
+density=$4
+symmetry=$5
+num_proc=$6
+num_threads=$7
+par=$8
+icntl_13=${9}
+ordering=${10}
 
 ## FIXME: complex support is broken for the moment. The generator does not support complex matrix.
 ##   We have to find a way to construct complex matrix while keeping the non-singularity property.
@@ -38,29 +37,39 @@ ordering=${11}
 # type="real"
 type_int=0
 
+do_analysis=0
+do_factorization=0
+
 case "$job" in
-"ap")
-    stage="Analysis"
+"at")
+    do_analysis=1
     ;;
 "ae")
-    stage="Analysis"
+    do_analysis=1
     ;;
-"fp")
-    stage="Factorization"
+"ft")
+    do_factorization=1
     ;;
 "fe")
-    stage="Factorization"
+    do_factorization=1
+    ;;
+"aft")
+    do_analysis=1
+    do_factorization=1
+    ;;
+"afe")
+    do_analysis=1
+    do_factorization=1
+    ;;
+"-h")
+    printf "\e[33mUSAGE:\e[0m %s job n bandwidth density symmetry num_proc num_threads par inctl13 ordering\n" "$0"
+    exit 0
     ;;
 *)
-    printf >&2 "\e[31mERROR\e[0m Wrong job value: %s (possible: ap, ae, fp, fe)\n" "$job"
+    printf >&2 "\e[31mERROR\e[0m Wrong job value: %s (possible: at, ae, ft, fe, aft, afe)\n" "$job"
     exit 2
     ;;
 esac
-
-if [[ "$synthetic" != "True" && "$synthetic" != "False" ]]; then
-    printf >&2 "\e[31mERROR\e[0m synthetic must be True or False (given: %s)\n" "$synthetic"
-    exit 2
-fi
 
 if [[ $n == "" || $(printf "%s" "$n" | grep -E -vo "[1-9][0-9]*") != "" ]]; then
     printf >&2 "\e[31mERROR\e[0m %s is a not a valid integer for N\n" "$n"
@@ -121,122 +130,45 @@ case "$ordering" in
     ;;
 esac
 
-matrix="${WORKDIR}/Dataset/"
+has_workdir_changed=0
+if [[ ${WORKDIR} == "" ]]; then
+    export WORKDIR="/tmp/mumps_launches"
+    has_workdir_changed=1
+fi
+
 timestamp=$(date -u +"%Y%m%d%H%M%S")
-outputdir="${WORKDIR}/tmp/mumps_launches"
+outputdir="${WORKDIR}/out"
 outputfile="${outputdir}/tmp${timestamp}.out"
 
+mkdir -p "${WORKDIR}/Saved_analysis"
 mkdir -p "${outputdir}"
 
 # EAR salloc options
 ear_options="--ear=on --ear-user-db=eardata --ear-cpufreq=2100000"
-node_list="node[001-021,025-079,081-110,112-125,127-130,132-137,139-212,215]"
 
-if [[ "$synthetic" == "True" ]]; then
-    # Log the inputs
-    printf "%s %d %s %s %d %d %d %d %d %s " "$job" "$n" "$bandwidth" "$density" "$symmetry" "$num_proc" "$num_threads" "$par" "$icntl_13" "$ordering" >>launch.log
+# Log the inputs
+printf "%s %d %s %s %d %d %d %d %d %s " "$job" "$n" "$bandwidth" "$density" "$symmetry" "$num_proc" "$num_threads" "$par" "$icntl_13" "$ordering" >>launch.log
 
-    # Run Analysis stage
-    if [[ "$stage" == "Analysis" ]]; then
-        # Launch the MUMPS executable with the given matrix size and symmetry
-        KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-ag" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
-            1>"$outputfile" 2>>err.out
+# Run both stages
+if [[ $do_analysis -eq 1 && $do_factorization -eq 1 ]]; then
+    # Launch the MUMPS executable with the given matrix size and symmetry
+    KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
+        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-afg" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
+        1>"$outputfile" 2>>err.out
 
-    # Run Factorization stage
-    else
-        # Launch the MUMPS executable with the given matrix size and symmetry
-        KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-fg" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
-            1>"$outputfile" 2>>err.out
-    fi
+# Run Analysis stage
+elif [[ $do_analysis -eq 1 ]]; then
+    # Launch the MUMPS executable with the given matrix size and symmetry
+    KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
+        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-ag" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
+        1>"$outputfile" 2>>err.out
 
-# Use Matrix in the Dataset
-else
-    max_n=$(grep -A 5 "KERNEL_INPUTS" ./config.json | tail -n 1 | grep -E -o "[0-9]*")
-    div=$(echo "$n / $max_n" | bc -l)
-    # Select the matrix according to the inputs
-    if [[ $symmetry == "0" ]]; then
-        selected=$(echo "($div * 4) / 1" | bc)
-        case "$selected" in
-        0)
-            matrix=$matrix"8-Transport.mtx"
-            ;;
-        1)
-            matrix=$matrix"2-ss.mtx"
-            ;;
-        2)
-            matrix=$matrix"11-vas_stokes_1M.mtx"
-            ;;
-        3)
-            matrix=$matrix"7-ML_Geer.mtx"
-            ;;
-        *)
-            exit 12
-            ;;
-        esac
-
-    else
-        selected=$(echo "($div * 11) / 1" | bc)
-        case "$selected" in
-        0)
-            matrix=$matrix"3-nlpkkt80.mtx"
-            ;;
-        1)
-            matrix=$matrix"18-PFlow_742.mtx"
-            ;;
-        2)
-            matrix=$matrix"14-dielFilterV2real.mtx"
-            ;;
-        3)
-            matrix=$matrix"12-Hook_1489.mtx"
-            ;;
-        4)
-            matrix=$matrix"5-Geo_1438.mtx"
-            ;;
-        5)
-            matrix=$matrix"4-Serena.mtx"
-            ;;
-        6)
-            matrix=$matrix"9-Bump_2911.mtx"
-            ;;
-        7)
-            matrix=$matrix"23-Long_Coup_dt0.mtx"
-            ;;
-        8)
-            matrix=$matrix"15-Flan_1565.mtx"
-            ;;
-        9)
-            matrix=$matrix"19-Cube_Coup_dt0.mtx"
-            ;;
-        10)
-            matrix=$matrix"13-Queen_4147.mtx"
-            ;;
-        *)
-            exit 13
-            ;;
-        esac
-    fi
-
-    # Log the inputs
-    printf "%s %s %d %d %d %d %s " "$job" "$matrix" "$num_proc" "$num_threads" "$par" "$icntl_13" "$ordering" >>launch.log
-
-    # Run Analysis stage
-    if [[ "$stage" == "Analysis" ]]; then
-        # Launch the MUMPS executable with the given matrix size and symmetry
-        KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=96G --time=00:10:00 $ear_options --exclude="$node_list" \
-            srun @MUMPS_EXEC_CALL@ "-ai" "$matrix" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
-            1>"$outputfile" 2>>err.out
-
-    # Run Factorization stage
-    else
-        # Launch the MUMPS executable with the given matrix size and symmetry
-        KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-            salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=96G --time=00:10:00 $ear_options --exclude="$node_list" \
-            srun @MUMPS_EXEC_CALL@ "-fi" "$matrix" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
-            1>"$outputfile" 2>>err.out
-    fi
+# Run Factorization stage
+elif [[ $do_factorization -eq 1 ]]; then
+    # Launch the MUMPS executable with the given matrix size and symmetry
+    KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
+        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-fg" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
+        1>"$outputfile" 2>>err.out
 fi
 
 exec_error=$(grep -E "\*\* ERROR RETURN \*\* FROM DMUMPS INFO\(1\)=" "$outputfile" | cut -d '=' -f2)
@@ -251,24 +183,30 @@ if [[ $exec_error != "" ]]; then
 fi
 
 # Retrieve the times mesures by MUMPS
-analysis_time=$(grep "Elapsed time in analysis driver" "$outputfile" | grep -E -o "[0-9]*\.[0-9]*")
+analysis_time=$(grep "Analysis time by clock_gettime" "$outputfile" | grep -E -o "[0-9]*\.[0-9]*")
 analysis_energy=$(grep "ANALYSIS EAR" "$outputfile" | cut -d ',' -f1 | grep -E -o "[0-9]*")
-factorization_time=$(grep "Elapsed time in factorization driver" "$outputfile" | grep -E -o "[0-9]*\.[0-9]*")
+factorization_time=$(grep "Factorization time by clock_gettime" "$outputfile" | grep -E -o "[0-9]*\.[0-9]*")
 factorization_energy=$(grep "FACTORIZATION EAR" "$outputfile" | cut -d ',' -f1 | grep -E -o "[0-9]*")
 
 # Select the value to return
 case "$job" in
-"ap")
+"at")
     result=$analysis_time
     ;;
 "ae")
     result=$analysis_energy
     ;;
-"fp")
+"ft")
     result=$factorization_time
     ;;
 "fe")
     result=$factorization_energy
+    ;;
+"aft")
+    result="$analysis_time,$factorization_time"
+    ;;
+"afe")
+    result="$analysis_energy,$factorization_energy"
     ;;
 esac
 
@@ -280,5 +218,9 @@ fi
 
 # Retrieve the result
 echo "$result"
+
+if [[ $has_workdir_changed -eq 1 ]]; then
+    unset WORKDIR
+fi
 
 # rm -f "$outputfile"
