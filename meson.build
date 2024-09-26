@@ -132,7 +132,7 @@ inc = include_directories('include', 'src')
 subdir('src')
 
 executable(
-  'mumps',
+  'mumps-parametrable-launcher',
   sources: src,
   dependencies: deps,
   include_directories: inc,
