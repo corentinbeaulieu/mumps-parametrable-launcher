@@ -114,6 +114,13 @@ if get_option('mkl')
   deps += mkl
 endif
 
+# Define scripts to install
+scripts = [
+  'run_mumps'
+  'run_mumps_analysis_time',
+  'run_mumps_factorization_time',
+]
+
 # Check if EAR is disponible to have energy measurements
 ear_install_path = get_option('ear-path')
 earlib = cc.find_library('ear_api', dirs: ear_install_path / 'lib', required: false)
@@ -124,6 +131,7 @@ if earlib.found()
   )
   deps += ear
   add_global_arguments('-DUSE_EAR', language: 'c')
+  scripts += ['run_mumps_analysis_energy', 'run_mumps_factorization_energy']
 endif
 
 # Define subdirectories and build targets
@@ -151,7 +159,7 @@ if get_option('spack')
   script_config = configuration_data(
     {
       'MUMPS_EXEC_CALL': executable_name,
-      'RUN_MUMPS_CALL': 'run_mumps',
+      'RUN_MUMPS_CALL': scripts[0],
       'LAUNCH_CMD': launch_command,
     },
   )
@@ -159,27 +167,12 @@ else
   script_config = configuration_data(
     {
       'MUMPS_EXEC_CALL': './' + executable_name,
-      'RUN_MUMPS_CALL': './run_mumps',
+      'RUN_MUMPS_CALL': './' + scripts[0],
       'LAUNCH_CMD': launch_command,
     },
   )
 endif
 
-configure_file(
-  input: meson.project_source_root() / 'scripts' / 'run_mumps.sh.in',
-  configuration: script_config,
-  output: 'run_mumps',
-  install: true,
-  install_dir: prefix / 'bin',
-  install_mode: 'rwxr-xr-x',
-)
-
-scripts = [
-  'run_mumps_analysis_time',
-  'run_mumps_analysis_energy',
-  'run_mumps_factorization_time',
-  'run_mumps_factorization_energy',
-]
 foreach script : scripts
 
   configure_file(
