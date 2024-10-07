@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Check the inputs
-
-if [[ $# != 10 ]]; then
-    printf >&2 "\e[33mUSAGE:\e[0m %s job n bandwidth density symmetry num_proc num_threads par inctl13 ordering\n" "$0"
-    exit 1
-fi
-
+# Help message
 if [[ $1 == "-h" || $1 == "--help" ]]; then
     printf "\e[33mUSAGE:\e[0m %s job n bandwidth density symmetry num_proc num_threads par inctl13 ordering\n" "$0"
     exit 0
+fi
+
+# Check the inputs
+if [[ $# != 10 ]]; then
+    printf >&2 "\e[33mUSAGE:\e[0m %s job n bandwidth density symmetry num_proc num_threads par inctl13 ordering\n" "$0"
+    exit 1
 fi
 
 job=$1
@@ -111,6 +111,11 @@ if [[ $(echo "$icntl_13" | grep -E -o "([1-9][0-9]*)|-1|0") == "" ]]; then
     exit 10
 fi
 
+if [[ $num_proc -eq 1 && $par -eq 0 ]]; then
+    printf >&2 "\e[31mERROR\e[0m num_proc == 1 is uncompatible with par == 0"
+    exit 11
+fi
+
 case "$ordering" in
 "automatic")
     ordering_int=0
@@ -129,7 +134,7 @@ case "$ordering" in
     ;;
 *)
     printf >&2 "\e[31mERROR\e[0m %s is not a proper ordering parameter (automatic, metis, pord, scotch, ptscotch)\n" "$ordering"
-    exit 11
+    exit 12
     ;;
 esac
 

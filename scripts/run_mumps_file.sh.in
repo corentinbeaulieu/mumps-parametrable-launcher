@@ -1,13 +1,15 @@
 #!/bin/env bash
 
-if [[ $# != 6 ]]; then
-    printf >&2 "\e[33mUSAGE:\e[0m %s matrix num_proc num_threads PAR INCTL(13) ordering" "$0"
-    exit 1
+# Help message
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+    printf "\e[33mUSAGE:\e[0m %s matrix num_proc num_threads PAR INCTL(13) ordering\n" "$0"
+    exit 0
 fi
 
-if [[ $1 == "-h" || $1 == "--help" ]]; then
-    printf "\e[33mUSAGE:\e[0m %s matrix num_proc num_threads PAR INCTL(13) ordering" "$0"
-    exit 0
+# Check the number of arguments
+if [[ $# != 6 ]]; then
+    printf >&2 "\e[33mUSAGE:\e[0m %s matrix num_proc num_threads PAR INCTL(13) ordering\n" "$0"
+    exit 1
 fi
 
 matrix=$1
