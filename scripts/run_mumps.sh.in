@@ -91,13 +91,13 @@ if [[ $symmetry != "0" && $symmetry != "1" && $symmetry != "2" && $symmetry != "
     exit 6
 fi
 
-if [[ $(echo "$num_threads" | grep -E -o "[1-9][0-9]*") == "" ]]; then
-    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of threads\n" "$num_threads"
+if [[ $(echo "$num_proc" | grep -E -o "[1-9][0-9]*") == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of MPI ranks\n" "$num_proc"
     exit 7
 fi
 
-if [[ $(echo "$num_proc" | grep -E -o "[1-9][0-9]*") == "" ]]; then
-    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of MPI ranks\n" "$num_threads"
+if [[ $(echo "$num_threads" | grep -E -o "[0-9]*") == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of threads\n" "$num_threads"
     exit 8
 fi
 
@@ -151,31 +151,38 @@ outputfile="${outputdir}/tmp${timestamp}.out"
 mkdir -p "${WORKDIR}/Saved_analysis"
 mkdir -p "${outputdir}"
 
+if [[ $num_threads -eq 0 ]]; then
+    num_threads_slurm=5
+    num_threads_mumps=0
+else
+    num_threads_omp=$num_threads
+    num_threads_slurm=$num_threads
+    num_threads_mumps=$num_threads
+fi
+
 # EAR salloc options
 ear_options="--ear=on --ear-user-db=eardata --ear-cpufreq=2100000"
 
 # Log the inputs
 printf "%s %d %s %s %d %d %d %d %d %s " "$job" "$n" "$bandwidth" "$density" "$symmetry" "$num_proc" "$num_threads" "$par" "$icntl_13" "$ordering" >>launch.log
 
-# Run both stages
 if [[ $do_analysis -eq 1 && $do_factorization -eq 1 ]]; then
-    # Launch the MUMPS executable with the given matrix size and symmetry
-    KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-afg" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
-        1>"$outputfile" 2>>err.out
-
-# Run Analysis stage
+    launching_job="-afg"
 elif [[ $do_analysis -eq 1 ]]; then
-    # Launch the MUMPS executable with the given matrix size and symmetry
-    KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-ag" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
-        1>"$outputfile" 2>>err.out
-
-# Run Factorization stage
+    launching_job="-ag"
 elif [[ $do_factorization -eq 1 ]]; then
+    launching_job="-fg"
+fi
+
+if [[ $num_threads -eq 0 ]]; then
     # Launch the MUMPS executable with the given matrix size and symmetry
-    KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads" OMP_NUM_THREADS="$num_threads" \
-        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-fg" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
+    KMP_AFFINITY=scatter OMP_NESTED=TRUE \
+        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "$launching_job" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads_mumps" "$ordering_int" \
+        1>"$outputfile" 2>>err.out
+else
+    # Launch the MUMPS executable with the given matrix size and symmetry
+    KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS="$num_threads_omp" OMP_NUM_THREADS="$num_threads_omp" \
+        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "$launching_job" "$type_int" "$n" "$bandwidth" "$density" "$symmetry" "$par" "$icntl_13" "$num_threads_mumps" "$ordering_int" \
         1>"$outputfile" 2>>err.out
 fi
 

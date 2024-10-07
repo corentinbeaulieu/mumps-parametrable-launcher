@@ -150,7 +150,7 @@ executable(
 )
 
 if get_option('cluster')
-  launch_command = '''salloc -N 1 -n "$num_proc" -c "$num_threads" --job-name=mumps_run -p cpu_short --mem=32G --time=00:05:00 $ear_options --exclude="$node_list" \
+  launch_command = '''salloc -N 1 -n "$num_proc" -c "$num_threads_slurm" --job-name=mumps_run -p cpu_short --mem=32G --time=00:05:00 $ear_options --exclude="$node_list" \
              srun'''
 else
   launch_command = 'mpirun -np "$num_proc" '

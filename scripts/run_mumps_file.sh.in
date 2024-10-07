@@ -25,13 +25,13 @@ if [[ "$matrix" == "" ]]; then
     exit 2
 fi
 
-if [[ $(echo "$num_threads" | grep -E -o "[1-9][0-9]*") == "" ]]; then
-    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of threads\n" "$num_threads"
+if [[ $(echo "$num_proc" | grep -E -o "[1-9][0-9]*") == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of MPI ranks\n" "$num_proc"
     exit 3
 fi
 
-if [[ $(echo "$num_proc" | grep -E -o "[1-9][0-9]*") == "" ]]; then
-    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of MPI ranks\n" "$num_threads"
+if [[ $(echo "$num_threads" | grep -E -o "[0-9]*") == "" ]]; then
+    printf >&2 "\e[31mERROR\e[0m %s is a wrong number of threads\n" "$num_threads"
     exit 4
 fi
 
@@ -83,16 +83,33 @@ mkdir -p "${outputdir}"
 
 input=$matrix
 
+if [[ $num_threads -eq 0 ]]; then
+    num_threads_slurm=5
+    num_threads_mumps=0
+else
+    num_threads_omp=$num_threads
+    num_threads_slurm=$num_threads
+    num_threads_mumps=$num_threads
+fi
+
 # EAR salloc option
 ear_options="--ear=on --ear-user-db=eardata --ear-cpufreq=2100000"
 
 # Log the inputs and the selection
 printf "%s %d %d %d %d %s " "$matrix" "$num_proc" "$num_threads" "$par" "$icntl_13" "$ordering" >>launch.log
 
-# Launch the MUMPS executable on the selected matrix
-KMP_AFFINITY=scatter OMP_NESTED=TRUE KMP_NUM_THREADS=$num_threads OMP_NUM_THREADS=$num_threads \
-    @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-afi" "$input" "$par" "$icntl_13" "$num_threads" "$ordering_int" \
-    1>"$outputfile" 2>>err.out
+if [[ $num_threads -eq 0 ]]; then
+    # Launch the MUMPS executable on the selected matrix
+    KMP_AFFINITY=scatter OMP_NESTED=TRUE \
+        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-afi" "$input" "$par" "$icntl_13" "$num_threads_mumps" "$ordering_int" \
+        1>"$outputfile" 2>>err.out
+
+else
+    # Launch the MUMPS executable on the selected matrix
+    KMP_AFFINITY=scatter OMP_NESTED=TRUE MKL_NUM_THREADS=$num_threads_omp OMP_NUM_THREADS=$num_threads_omp \
+        @LAUNCH_CMD@ @MUMPS_EXEC_CALL@ "-afi" "$input" "$par" "$icntl_13" "$num_threads_mumps" "$ordering_int" \
+        1>"$outputfile" 2>>err.out
+fi
 
 exec_error=$(grep -E "\*\* ERROR RETURN \*\* FROM DMUMPS INFO\(1\)=" "$outputfile" | cut -d '=' -f2)
 
